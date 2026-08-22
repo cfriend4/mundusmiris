@@ -27,14 +27,21 @@
   @keyframes blink{50%{opacity:.35;}}
   #meta{position:absolute; top:10px; right:12px; text-align:right; font-size:11px; color:var(--bone); pointer-events:none;}
   #meta .flare{color:var(--gold);}
-  #gear{position:absolute; top:34px; right:12px; pointer-events:auto; background:var(--panel); color:var(--dim); border:1px solid var(--line); font-family:inherit; font-size:10px; padding:3px 8px; cursor:pointer; letter-spacing:1px;}
-  #gear:hover{color:var(--bone);}
-  #gear:focus-visible{outline:2px solid var(--gold);}
 
-  #hint{position:absolute; bottom:8px; left:0; right:0; text-align:center; font-size:11px; color:var(--dim); letter-spacing:1px; pointer-events:none; text-shadow:0 1px 0 #000;}
+  /* Corner menu stack: buttons + their panels stack top-to-bottom automatically */
+  #menuStack{position:absolute; top:34px; right:12px; display:flex; flex-direction:column; align-items:flex-end;}
+  #menuStack > *{margin-top:6px;}
+  #menuStack > *:first-child{margin-top:0;}
+  #gear, #controlsBtn{pointer-events:auto; background:var(--panel); color:var(--dim); border:1px solid var(--line); font-family:inherit; font-size:10px; padding:3px 8px; cursor:pointer; letter-spacing:1px;}
+  #gear:hover, #controlsBtn:hover{color:var(--bone);}
+  #gear:focus-visible, #controlsBtn:focus-visible{outline:2px solid var(--gold);}
+
+  #hint{position:absolute; top:8px; left:0; right:0; text-align:center; font-size:11px; color:var(--dim); letter-spacing:1px; pointer-events:none; text-shadow:0 1px 0 #000;}
+  #hint.flag-ready{color:var(--hp); animation:pulseRed .6s ease-in-out infinite;}
+  @keyframes pulseRed{50%{opacity:.35;}}
 
   /* Dialogue */
-  #dlg{position:absolute; left:50%; bottom:44px; transform:translateX(-50%); width:560px; max-width:92%;
+  #dlg{position:absolute; left:50%; top:70px; transform:translateX(-50%); width:560px; max-width:92%;
        background:var(--panel); border:1px solid var(--gold); padding:12px 14px; font-size:12px; line-height:1.6;
        display:none; pointer-events:none;}
   #dlg .who{color:var(--gold); font-size:10px; text-transform:uppercase; letter-spacing:2px; margin-bottom:4px;}
@@ -51,14 +58,14 @@
   #deadTitle{color:var(--hp);}
   #winTitle{color:var(--gold);}
 
-  /* Settings */
-  #settings{position:absolute; top:60px; right:12px; width:250px; background:var(--panel); border:1px solid var(--line); padding:14px; font-size:11px; display:none;}
-  #settings h3{font-size:11px; letter-spacing:2px; color:var(--gold); margin-bottom:10px;}
+  /* Settings + Controls panels (share the same look) */
+  #settings, #controlsPanel{width:250px; background:var(--panel); border:1px solid var(--line); padding:14px; font-size:11px; display:none;}
+  #settings h3, #controlsPanel h3{font-size:11px; letter-spacing:2px; color:var(--gold); margin-bottom:10px;}
   #settings label{display:block; color:var(--dim); margin:8px 0 4px;}
   #settings input[type=range]{width:100%;}
   #settings .val{color:var(--bone);}
-  #settings .keys{margin-top:10px; color:var(--dim); line-height:1.8; border-top:1px solid var(--line); padding-top:8px;}
-  #settings .keys b{color:var(--bone); font-weight:normal;}
+  .keys{color:var(--dim); line-height:1.8;}
+  .keys b{color:var(--bone); font-weight:normal;}
 </style>
 </head>
 <body>
@@ -76,23 +83,28 @@
     <div>LEVEL 1 — LANDING</div>
     <div class="flare" id="flareCount">FLARES ×3</div>
   </div>
-  <button id="gear" aria-label="Settings">SETTINGS</button>
-
-  <div id="settings">
-    <h3>SETTINGS</h3>
-    <label>Oxygen on respawn: <span class="val" id="respawnVal">60%</span></label>
-    <input type="range" id="respawnO2" min="10" max="100" step="5" value="60" aria-label="Oxygen on respawn">
-    <label>Ambient O2 drain: <span class="val" id="drainVal">1.0×</span></label>
-    <input type="range" id="drainRate" min="0" max="200" step="10" value="100" aria-label="Ambient oxygen drain multiplier">
-    <div style="margin-top:12px;">
-      <button id="btnRestart" class="ghost">RESTART LEVEL</button>
+  <div id="menuStack">
+    <button id="gear" aria-label="Settings">SETTINGS</button>
+    <div id="settings">
+      <h3>SETTINGS</h3>
+      <label>Oxygen on respawn: <span class="val" id="respawnVal">60%</span></label>
+      <input type="range" id="respawnO2" min="10" max="100" step="5" value="60" aria-label="Oxygen on respawn">
+      <label>Ambient O2 drain: <span class="val" id="drainVal">1.0×</span></label>
+      <input type="range" id="drainRate" min="0" max="200" step="10" value="100" aria-label="Ambient oxygen drain multiplier">
+      <div style="margin-top:12px;">
+        <button id="btnRestart" class="ghost">RESTART LEVEL</button>
+      </div>
     </div>
-    <div class="keys">
-      <b>WASD / Arrows</b> — move<br>
-      <b>SPACE</b> — jump (costs O2)<br>
-      <b>J</b> — swing club (costs O2)<br>
-      <b>F</b> — drop flare checkpoint<br>
-      <b>E</b> — interact / continue
+    <button id="controlsBtn" aria-label="Controls">CONTROLS</button>
+    <div id="controlsPanel">
+      <h3>CONTROLS</h3>
+      <div class="keys">
+        <b>WASD / Arrows</b> — move<br>
+        <b>SPACE</b> — jump (costs O2)<br>
+        <b>J</b> — swing club (costs O2)<br>
+        <b>F</b> — drop flare checkpoint<br>
+        <b>E</b> — interact / continue
+      </div>
     </div>
   </div>
 
@@ -138,7 +150,7 @@ const TUNE = {
   tankRefill: 40,
   suffocateHpPerSec: 12,
   moveSpeed: 95,           // slow, heavy
-  jumpMs: 720, jumpHeight: 22,
+  jumpMs: 1000, jumpHeight: 30,
   swingCooldown: 420, swingRange: 30,
   startFlares: 3, craterFallPct: 0.55,
   hazardScale: 2.5, hazardMissRadius: 25,
@@ -168,6 +180,7 @@ const ui = {
   win: document.getElementById('winOverlay'),
   winStats: document.getElementById('winStats'),
   settings: document.getElementById('settings'),
+  controlsPanel: document.getElementById('controlsPanel'),
   respawnO2: document.getElementById('respawnO2'),
   respawnVal: document.getElementById('respawnVal'),
   drainRate: document.getElementById('drainRate'),
@@ -176,6 +189,11 @@ const ui = {
 
 document.getElementById('gear').onclick = () => {
   ui.settings.style.display = ui.settings.style.display === 'block' ? 'none' : 'block';
+  ui.controlsPanel.style.display = 'none';
+};
+document.getElementById('controlsBtn').onclick = () => {
+  ui.controlsPanel.style.display = ui.controlsPanel.style.display === 'block' ? 'none' : 'block';
+  ui.settings.style.display = 'none';
 };
 ui.respawnO2.oninput = () => ui.respawnVal.textContent = ui.respawnO2.value + '%';
 ui.drainRate.oninput = () => ui.drainVal.textContent = (ui.drainRate.value/100).toFixed(1) + '×';
@@ -187,6 +205,7 @@ document.getElementById('btnRespawn').onclick = () => scene && scene.respawn();
 let scene = null;
 function restartLevel(){ if(scene) scene.scene.restart(); }
 function hideDialog(){ ui.dlg.style.display = 'none'; }
+function setHint(text){ ui.hint.textContent = text ? 'CURRENT OBJECTIVE: '+text : ''; }
 
 /* ---------------- texture factory (all pixel art in code) --------------- */
 function makeTextures(sc){
@@ -275,6 +294,14 @@ function makeTextures(sc){
   T('swing',22,22,g=>{ g.lineStyle(3,0xf2efe4,0.9); g.beginPath();
     g.arc(11,11,9,-0.8,0.8); g.strokePath(); });
 
+  // big red "definitely nothing here" arrows — plain triangles, drawn separately
+  // per direction (rather than flipping one texture) so each can use an origin
+  // set to its own visual centroid, keeping it aligned under the sign text
+  T('arrowR',24,20,g=>{ g.fillStyle(0xd4302a); g.beginPath();
+    g.moveTo(0,0); g.lineTo(24,10); g.lineTo(0,20); g.closePath(); g.fillPath(); });
+  T('arrowL',24,20,g=>{ g.fillStyle(0xd4302a); g.beginPath();
+    g.moveTo(24,0); g.lineTo(0,10); g.lineTo(24,20); g.closePath(); g.fillPath(); });
+
   g.destroy();
 }
 
@@ -312,8 +339,9 @@ class Level1 extends Phaser.Scene {
     this.player = this.add.image(0,0,'astro').setScale(2);
     this.z = 0;
 
-    // ---- lander + NPCs
-    this.add.image(660,1690,'lander').setScale(2).setDepth(1690);
+    // ---- lander (solid) + NPCs
+    this.lander = this.physics.add.staticImage(660,1690,'lander').setScale(2).setDepth(1690);
+    this.lander.refreshBody();
     this.npc1 = this.addNPC(620,1780);
     this.npc2 = this.addNPC(470,1380);
     this.npc3 = this.addNPC(625,830);
@@ -364,6 +392,7 @@ class Level1 extends Phaser.Scene {
 
     // ---- colliders
     this.physics.add.collider(this.base,this.cliffs);
+    this.physics.add.collider(this.base,this.lander);
     this.physics.add.collider(this.base,this.rocks);
     this.physics.add.collider(this.base,this.hazards,null,()=> this.z===0);
     this.physics.add.overlap(this.base,this.tanks,(b,t)=>{ if(S.o2<TUNE.o2Max-1){ S.o2=Math.min(TUNE.o2Max,S.o2+TUNE.tankRefill); this.pop(t.x,t.y,'+O2',0x6ba0e8); t.destroy(); }});
@@ -391,13 +420,13 @@ class Level1 extends Phaser.Scene {
         cond:()=>S.hasClub, give:'flag'},
       {x:640,y:650,r:80,who:'SUIT COMPUTER',text:'NOTICE: seismic sensors are picking up faint tremors. Probably settling dust. Probably.', cond:()=>S.hasFlag},
       // secret side-tunnel lore
-      {x:150,y:650,r:45,who:'WEATHERED PLACARD',text:'Excerpt from a speech, Commisioner Magnus: "We choose to go to Mundus Mirus in this decade, and do the other things — not because they are easy, but because they are hard. We go into the great beyond because whatever mankind must undertake, free men must fully share. And because there are some things mankind cannot afford to leave undiscovered."'},
-      {x:1150,y:350,r:45,who:'SCRATCHED STONE',text:'You see what appears to be writing scratched into the rock, in a language you cannot read: "Це місце стане твоїм домом. Це місце стане твоєю гробницею."'},
+      {x:150,y:650,r:45,who:'WEATHERED PLACARD',text:'The universe is under no obligation to make sense to you. — Neil deGrasse Tyson'},
+      {x:1150,y:350,r:45,who:'SCRATCHED STONE',text:'I tried to organize a party on the Moon, but nobody came. There was no atmosphere.'},
     ];
     this.triggers.forEach(t=>t.fired=false);
 
     this.updateHUD();
-    ui.hint.textContent = '';
+    setHint('');
   }
 
   /* ---------- helpers ---------- */
@@ -439,6 +468,14 @@ class Level1 extends Phaser.Scene {
     // boulders blocking each tunnel entrance — break with the club to enter
     [[COR_W,1284],[COR_W,1332]].forEach(p=>this.spawnRock(p[0],p[1]));
     [[COR_E,996],[COR_E,1044]].forEach(p=>this.spawnRock(p[0],p[1]));
+
+    // "totally not secret tunnels" signage, pointing at the rocks hiding each breach
+    // (text and arrow sit side by side on one row so the sign reads horizontally)
+    this.add.image(355,1308,'arrowL').setOrigin(0.667,0.5).setScale(1.3).setDepth(1308);
+    this.add.text(375,1308,'DEFINITELY NO SECRETS AHEAD',{fontFamily:'monospace',fontSize:'10px',color:'#d4302a'}).setOrigin(0,0.5).setDepth(1308);
+
+    this.add.text(895,1020,'DEFINITELY NO SECRETS AHEAD',{fontFamily:'monospace',fontSize:'10px',color:'#d4302a'}).setOrigin(1,0.5).setDepth(1020);
+    this.add.image(915,1020,'arrowR').setOrigin(0.333,0.5).setScale(1.3).setDepth(1020);
   }
   pop(x,y,txt,color){
     const t=this.add.text(x,y,txt,{fontFamily:'monospace',fontSize:'12px',color:'#'+color.toString(16).padStart(6,'0')}).setOrigin(0.5).setDepth(9999);
@@ -467,7 +504,7 @@ class Level1 extends Phaser.Scene {
     ui.dead.style.display='flex';
   }
   respawn(){
-    const p=S.checkpoint||{x:560,y:1750};
+    const p=S.checkpoint||{x:600,y:1850};
     this.base.setPosition(p.x,p.y); this.base.setVelocity(0,0);
     S.hp=TUNE.hpMax; S.o2=TUNE.o2Max*(parseInt(ui.respawnO2.value,10)/100);
     S.dead=false; ui.dead.style.display='none';
@@ -551,12 +588,14 @@ class Level1 extends Phaser.Scene {
     // flag plant
     const atSummit=Phaser.Geom.Rectangle.Contains(this.summit,this.base.x,this.base.y);
     if(atSummit && S.hasFlag){
-      ui.hint.textContent='E — PLANT THE FLAG';
+      setHint('E — PLANT THE FLAG');
+      ui.hint.classList.add('flag-ready');
       if(Phaser.Input.Keyboard.JustDown(k.E) && time>this.dlgGuard) this.winLevel();
     } else {
-      ui.hint.textContent = !S.hasClub ? 'FIND CAPTAIN MAYO WEST OF THE LANDER'
+      ui.hint.classList.remove('flag-ready');
+      setHint(!S.hasClub ? 'FIND CAPTAIN MAYO WEST OF THE LANDER'
         : !S.hasFlag ? 'MAJ IDRIS HAS THE FLAG AT THE LANDER'
-        : 'HEAD NORTH — PLANT THE FLAG ON THE RIDGE';
+        : 'HEAD NORTH — PLANT THE FLAG ON THE RIDGE');
     }
 
     // oxygen economy
