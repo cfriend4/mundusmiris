@@ -306,7 +306,7 @@ class Level1 extends Phaser.Scene {
     this.flarePickups = this.physics.add.staticGroup();
 
     // ---- player (invisible physics base + visual sprite + shadow)
-    this.base = this.physics.add.image(560,1750,'shadow').setVisible(false);
+    this.base = this.physics.add.image(600,1850,'shadow').setVisible(false);
     this.base.body.setSize(12,8); this.base.setCollideWorldBounds(true); this.base.setDamping(true).setDrag(0.0008);
     this.shadow = this.add.image(0,0,'shadow');
     this.player = this.add.image(0,0,'astro').setScale(2);
@@ -315,14 +315,14 @@ class Level1 extends Phaser.Scene {
     // ---- lander + NPCs
     this.add.image(660,1690,'lander').setScale(2).setDepth(1690);
     this.npc1 = this.addNPC(620,1780);
-    this.npc2 = this.addNPC(470,1560);
+    this.npc2 = this.addNPC(470,1380);
     this.npc3 = this.addNPC(625,830);
 
     // tanks placed right after the oxygen tutorial line, before the craters
-    this.spawnTank(500,1600); this.spawnTank(640,1600);
+    this.spawnTank(480,1550); this.spawnTank(790,1600);
 
     // golf ball
-    this.ball = this.physics.add.image(470,1500,'ball').setScale(2);
+    this.ball = this.physics.add.image(470,1410,'ball').setScale(2);
     this.ball.setDamping(true).setDrag(0.02).setBounce(0.6).setCollideWorldBounds(true);
     this.physics.add.collider(this.ball,this.cliffs);
     this.physics.add.collider(this.ball,this.rocks);
@@ -331,7 +331,7 @@ class Level1 extends Phaser.Scene {
     this.buildWalls(W,H);
 
     // jump-tutorial craters
-    this.hazard('crater',540,1620); this.hazard('crater',600,1615); this.hazard('crater',572,1650);
+    this.hazard('crater',490,1620); this.hazard('crater',410,1650); this.hazard('crater',572,1650); this.hazard('crater',700,1650); this.hazard('crater',790,1665); this.hazard('crater',880,1645);
 
     // crater field
     [[430,1350],[520,1310],[610,1360],[700,1300],[790,1350],[480,1230],[640,1210],[760,1230]]
@@ -380,11 +380,11 @@ class Level1 extends Phaser.Scene {
     // ---- dialogue triggers (drain pauses while open)
     this.triggers = [
       // 1 — movement
-      {x:560,y:1750,r:70,who:'Commander Okwonko',text:'Welcome to the surface, rookie. Take some time to get yourself familiar with moving in low gravity. Move with WASD or the arrow keys — take it slow now, it aint a race.', auto:true},
+      {x:560,y:1850,r:70,who:'Commander Okwonko',text:'Welcome to the surface, rookie. Take some time to get yourself familiar with moving in low gravity. Move with WASD or the arrow keys — take it slow now, it aint a race.', auto:true},
       // 2 — oxygen (jumping + tanks, one topic)
       {x:572,y:1690,r:60,who:'Commander Okwonko',text:'Watch out - Craters ahead. Tap SPACE to jump — gravity is one-sixth of home, so you will hang in the air a while, and every jump burns oxygen. When you are running low, tanks like those blue cylinders up ahead will refill you — never pass one by.'},
       // 3 — golf / weapon
-      {x:470,y:1560,r:55,who:'Captain Mayo',text:'Catch. A six iron — don\'t ask why it was on the manifest. Press J to swing. Swings burn oxygen too, so make them count. Go on, hit the ball.',
+      {x:470,y:1380,r:55,who:'Captain Mayo',text:'Catch. A six iron — don\'t ask why it was on the manifest. Press J to swing. Swings burn oxygen too, so make them count. Go on, hit the ball.',
         give:'club'},
       // 4 — flag, positioned right before the rock chokepoint
       {x:625,y:830,r:60,who:'King Henry',text:'Here — the flag. Plant it at the marker on the ridge north of here. Those boulders dead ahead are blocking the path — your club should crack them open. Watch for fissures higher up. Drop a flare with F if you want a checkpoint. Make us proud.',
