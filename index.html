@@ -361,23 +361,40 @@ class Level1 extends Phaser.Scene {
     // jump-tutorial craters
     this.hazard('crater',490,1620); this.hazard('crater',410,1650); this.hazard('crater',572,1650); this.hazard('crater',700,1650); this.hazard('crater',790,1665); this.hazard('crater',880,1645);
 
-    // crater field
-    [[430,1350],[520,1310],[610,1360],[700,1300],[790,1350],[480,1230],[640,1210],[760,1230]]
-      .forEach(p=>this.hazard('crater',p[0],p[1]));
+    // crater field — checkerboard: craters on the "black" squares, open
+    // ground on the "white" ones. Crater hitboxes are 75x50, so spacing
+    // them closer than that on each axis makes diagonal neighbors' boxes
+    // overlap at the corners — no gap to sneak through, only jump over.
+    const cfCols=[400,465,530,595,660,725,790,855], cfRows=[1150,1190,1230,1270,1310,1350];
+    cfRows.forEach((y,ri)=>cfCols.forEach((x,ci)=>{
+      if((ci+ri)%2===0) this.hazard('crater',x,y);
+    }));
 
-    // fissures (must jump)
-    [[560,1080],[700,1080],[480,1000],[640,1000],[780,1000],[560,920],[700,920]]
-      .forEach(p=>this.hazard('fissure',p[0],p[1]));
+    // fissures (must jump) — each row spans the full corridor width with
+    // slight overlap between bars, so there's no gap to walk around; three
+    // rows means three mandatory hops to cross the trench section
+    const trCols=[430,560,690,820], trRows=[920,1000,1080];
+    trRows.forEach(y=>trCols.forEach(x=>this.hazard('fissure',x,y)));
 
     // destructible rock chokepoint
     [[590,760],[625,752],[660,760],[608,782],[644,782]].forEach(p=>this.spawnRock(p[0],p[1]));
 
-    // ridge climb scatter
-    [[500,600],[720,560],[560,480],[680,420],[600,340]].forEach(p=>this.hazard('crater',p[0],p[1]));
-    this.spawnRock(540,540); this.spawnRock(700,470);
+    // ridge gauntlet — post-flag climb to the summit, mixing all three
+    // hazard types so the final stretch takes some jumping, some rock
+    // breaking, or both
+    // tier 1: fissure barrier — jump only
+    [[430,680],[560,680],[690,680],[820,680]].forEach(p=>this.hazard('fissure',p[0],p[1]));
+    // tier 2: funnelled rock chokepoint — destroy only (funnel walls above)
+    [[590,560],[625,552],[660,560],[608,582],[644,582]].forEach(p=>this.spawnRock(p[0],p[1]));
+    // tier 3: crater barrier — jump only
+    [400,470,540,610,680,750,820].forEach(x=>this.hazard('crater',x,440));
+    // tier 4: final approach — rocks block the west side, craters the east,
+    // so the last stretch is whichever mix of jumping and breaking you pick
+    [400,435,470,505,540,575,610].forEach(x=>this.spawnRock(x,370));
+    [650,720,790,860].forEach(x=>this.hazard('crater',x,370));
 
     // extra tanks + bonus flare along route
-    this.spawnTank(820,1180); this.spawnTank(430,940); this.spawnTank(640,660);
+    this.spawnTank(895,1140); this.spawnTank(430,960); this.spawnTank(640,620);
     const fp = this.flarePickups.create(500,860,'flare').setScale(2); fp.refreshBody();
 
     // secret tunnels: reward chambers (oxygen tank + lore marker in each)
@@ -455,6 +472,8 @@ class Level1 extends Phaser.Scene {
     for(let x=OUT_W;x<=OUT_E;x+=step) wall(x,180);
     // funnel pinches before the main rock chokepoint
     [[380,760],[430,760],[480,760],[530,760],[860,760],[810,760],[760,760],[710,760]].forEach(p=>wall(p[0],p[1]));
+    // funnel pinch for the second rock gate in the post-flag ridge gauntlet
+    [[380,560],[430,560],[480,560],[530,560],[860,560],[810,560],[760,560],[710,560]].forEach(p=>wall(p[0],p[1]));
 
     // west tunnel: zigzag baffles forcing a winding path
     baffle(60,240,1150);
