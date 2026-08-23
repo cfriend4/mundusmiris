@@ -19,8 +19,9 @@
     object-fit:contain; object-position:center top;}
   .screenBody{position:relative; z-index:1; width:100%; padding:0 0 24px;
     background:linear-gradient(to top, rgba(6,6,12,.94) 34%, rgba(6,6,12,0));}
-  .screenPrompt{font-size:12px; letter-spacing:3px; color:var(--gold);
-    text-shadow:0 1px 3px #000; opacity:0; transition:opacity .4s ease;}
+  .screenPrompt{font-size:20px; font-weight:bold; letter-spacing:4px; color:var(--gold);
+    text-shadow:0 2px 6px #000, 0 0 14px rgba(0,0,0,.9);
+    opacity:0; transition:opacity .4s ease;}
   .screenPrompt.ready{opacity:1; animation:promptPulse 1.6s ease-in-out infinite;}
   @keyframes promptPulse{50%{opacity:.4;}}
 
