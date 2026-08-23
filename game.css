@@ -1,0 +1,36 @@
+/* ============================================================
+   MUNDUS MIRIS — shared styling
+   Loaded by every page: index.html (splash + level select) and
+   each level page. Page-specific rules stay inline in that page.
+   ============================================================ */
+
+:root{
+  --ink:#0a0a12; --panel:#12121c; --line:#2b2b3a;
+  --bone:#d8d3c4; --gold:#c9a227; --o2:#3a7bd8; --hp:#b3202a; --dim:#8a8798;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{background:var(--ink); color:var(--bone); font-family:"Courier New",monospace;
+  display:flex; align-items:center; justify-content:center; min-height:100vh;}
+
+/* The 840x620 stage every page draws inside. Level pages get their height from
+   the canvas in #game; the menu page sets it explicitly. */
+#wrap{position:relative; width:840px; max-width:100vw;}
+
+/* Full-stage panels: death/win on a level page, splash/title on the menu.
+   Note these pre-set flex, so the show idiom is display:'flex', not 'block'. */
+.overlay{position:absolute; inset:0; background:rgba(6,6,12,.88); display:none;
+  align-items:center; justify-content:center; text-align:center;}
+.overlay .card{border:1px solid var(--line); background:var(--panel); padding:28px 36px; max-width:480px;}
+.overlay h2{font-size:16px; letter-spacing:4px; margin-bottom:10px;}
+.overlay p{font-size:12px; color:var(--dim); line-height:1.7; margin-bottom:14px;}
+.overlay button{background:var(--gold); color:#141005; border:0; font-family:inherit;
+  font-size:12px; letter-spacing:2px; padding:8px 18px; cursor:pointer; margin:3px;}
+.overlay button.ghost{background:transparent; color:var(--dim); border:1px solid var(--line);}
+.overlay button:focus-visible{outline:2px solid var(--o2);}
+
+/* A link that navigates between pages but reads as a secondary button. */
+.btnlink{display:inline-block; background:transparent; color:var(--dim);
+  border:1px solid var(--line); font-family:inherit; font-size:12px; letter-spacing:2px;
+  padding:8px 18px; margin:3px; cursor:pointer; text-decoration:none;}
+.btnlink:hover{color:var(--bone);}
+.btnlink:focus-visible{outline:2px solid var(--o2);}

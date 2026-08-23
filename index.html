@@ -3,650 +3,151 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MUNDUS MIRUS — Level 1: Landing</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+<title>MUNDUS MIRIS</title>
+<link rel="preload" as="image" href="MundusMirisImage.png">
+<link rel="preload" as="image" href="MundusMirisTitleImage.png" fetchpriority="low">
+<link rel="stylesheet" href="game.css">
 <style>
-  :root{
-    --ink:#0a0a12; --panel:#12121c; --line:#2b2b3a;
-    --bone:#d8d3c4; --gold:#c9a227; --o2:#3a7bd8; --hp:#b3202a; --dim:#8a8798;
+  /* This page carries no canvas, so #wrap needs the stage height itself. */
+  #wrap{height:620px; max-height:100vh; border:2px solid var(--line); overflow:hidden;}
+
+  /* Menu screens — opaque, so there's no white flash while a ~2MB PNG decodes */
+  .screen{background:var(--ink); overflow:hidden;
+    flex-direction:column; justify-content:flex-end;}
+  /* letterbox: the whole square is shown, dark bars fill the landscape frame */
+  .screenArt{position:absolute; inset:0; width:100%; height:100%;
+    object-fit:contain; object-position:center top;}
+  .screenBody{position:relative; z-index:1; width:100%; padding:0 0 24px;
+    background:linear-gradient(to top, rgba(6,6,12,.94) 34%, rgba(6,6,12,0));}
+  .screenPrompt{font-size:12px; letter-spacing:3px; color:var(--gold);
+    text-shadow:0 1px 3px #000; opacity:0; transition:opacity .4s ease;}
+  .screenPrompt.ready{opacity:1; animation:promptPulse 1.6s ease-in-out infinite;}
+  @keyframes promptPulse{50%{opacity:.4;}}
+
+  .menuCard{background:rgba(18,18,28,.9); border:1px solid var(--line);
+    display:inline-block; padding:16px 26px;}
+  .menuCard h2{font-size:12px; letter-spacing:4px; color:var(--gold); margin-bottom:10px;}
+  /* Real links, so mouse, keyboard, back button and middle-click all just work */
+  .levelBtn{display:block; width:250px; margin:5px auto; background:transparent;
+    color:var(--bone); border:1px solid var(--line); font-family:inherit;
+    font-size:12px; letter-spacing:2px; padding:9px; cursor:pointer;
+    text-decoration:none;}
+  .levelBtn:hover, .levelBtn.sel{color:var(--gold); border-color:var(--gold);
+    background:rgba(201,162,39,.10);}
+  .levelBtn:focus{outline:none;}
+  .levelBtn:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .soon{font-size:10px; letter-spacing:2px; color:var(--dim); margin-top:12px;}
+  .menuHelp{font-size:10px; letter-spacing:1px; color:var(--dim); margin-top:8px;}
+
+  @media (prefers-reduced-motion: reduce){
+    .screenPrompt.ready{animation:none;}
   }
-  *{box-sizing:border-box; margin:0; padding:0;}
-  body{background:var(--ink); color:var(--bone); font-family:"Courier New",monospace; display:flex; align-items:center; justify-content:center; min-height:100vh;}
-  #wrap{position:relative; width:840px; max-width:100vw;}
-  #game{width:840px; height:620px; max-width:100vw; border:2px solid var(--line); image-rendering:pixelated;}
-  canvas{image-rendering:pixelated;}
-
-  /* HUD */
-  #hud{position:absolute; top:0; left:0; right:0; padding:10px 12px; pointer-events:none; letter-spacing:1px;}
-  .barlabel{font-size:10px; color:var(--dim); text-transform:uppercase;}
-  .bar{width:220px; height:12px; background:#000; border:1px solid var(--line); margin:2px 0 6px;}
-  .bar>div{height:100%; transition:width .15s linear;}
-  #hpfill{background:var(--hp); width:100%;}
-  #o2fill{background:var(--o2); width:100%;}
-  #o2fill.low{animation:blink .5s steps(2) infinite;}
-  @keyframes blink{50%{opacity:.35;}}
-  #meta{position:absolute; top:10px; right:12px; text-align:right; font-size:11px; color:var(--bone); pointer-events:none;}
-  #meta .flare{color:var(--gold);}
-
-  /* Corner menu stack: buttons + their panels stack top-to-bottom automatically */
-  #menuStack{position:absolute; top:34px; right:12px; display:flex; flex-direction:column; align-items:flex-end;}
-  #menuStack > *{margin-top:6px;}
-  #menuStack > *:first-child{margin-top:0;}
-  #gear, #controlsBtn{pointer-events:auto; background:var(--panel); color:var(--dim); border:1px solid var(--line); font-family:inherit; font-size:10px; padding:3px 8px; cursor:pointer; letter-spacing:1px;}
-  #gear:hover, #controlsBtn:hover{color:var(--bone);}
-  #gear:focus-visible, #controlsBtn:focus-visible{outline:2px solid var(--gold);}
-
-  #hint{position:absolute; top:8px; left:0; right:0; text-align:center; font-size:11px; color:var(--dim); letter-spacing:1px; pointer-events:none; text-shadow:0 1px 0 #000;}
-  #hint.flag-ready{color:var(--hp); animation:pulseRed .6s ease-in-out infinite;}
-  @keyframes pulseRed{50%{opacity:.35;}}
-
-  /* Dialogue */
-  #dlg{position:absolute; left:50%; top:70px; transform:translateX(-50%); width:560px; max-width:92%;
-       background:var(--panel); border:1px solid var(--gold); padding:12px 14px; font-size:12px; line-height:1.6;
-       display:none; pointer-events:none;}
-  #dlg .who{color:var(--gold); font-size:10px; text-transform:uppercase; letter-spacing:2px; margin-bottom:4px;}
-  #dlg .press{color:var(--dim); font-size:10px; margin-top:8px; text-align:right;}
-
-  /* Overlays */
-  .overlay{position:absolute; inset:0; background:rgba(6,6,12,.88); display:none; align-items:center; justify-content:center; text-align:center;}
-  .overlay .card{border:1px solid var(--line); background:var(--panel); padding:28px 36px; max-width:480px;}
-  .overlay h2{font-size:16px; letter-spacing:4px; margin-bottom:10px;}
-  .overlay p{font-size:12px; color:var(--dim); line-height:1.7; margin-bottom:14px;}
-  .overlay button, #settings button{background:var(--gold); color:#141005; border:0; font-family:inherit; font-size:12px; letter-spacing:2px; padding:8px 18px; cursor:pointer; margin:3px;}
-  .overlay button.ghost, #settings button.ghost{background:transparent; color:var(--dim); border:1px solid var(--line);}
-  .overlay button:focus-visible, #settings button:focus-visible, #settings input:focus-visible{outline:2px solid var(--o2);}
-  #deadTitle{color:var(--hp);}
-  #winTitle{color:var(--gold);}
-
-  /* Settings + Controls panels (share the same look) */
-  #settings, #controlsPanel{width:250px; background:var(--panel); border:1px solid var(--line); padding:14px; font-size:11px; display:none;}
-  #settings h3, #controlsPanel h3{font-size:11px; letter-spacing:2px; color:var(--gold); margin-bottom:10px;}
-  #settings label{display:block; color:var(--dim); margin:8px 0 4px;}
-  #settings input[type=range]{width:100%;}
-  #settings .val{color:var(--bone);}
-  .keys{color:var(--dim); line-height:1.8;}
-  .keys b{color:var(--bone); font-weight:normal;}
 </style>
 </head>
 <body>
 <div id="wrap">
-  <div id="game"></div>
 
-  <div id="hud">
-    <div class="barlabel">Vitals</div>
-    <div class="bar"><div id="hpfill"></div></div>
-    <div class="barlabel">Oxygen</div>
-    <div class="bar"><div id="o2fill"></div></div>
-  </div>
-
-  <div id="meta">
-    <div>LEVEL 1 — LANDING</div>
-    <div class="flare" id="flareCount">FLARES ×3</div>
-  </div>
-  <div id="menuStack">
-    <button id="gear" aria-label="Settings">SETTINGS</button>
-    <div id="settings">
-      <h3>SETTINGS</h3>
-      <label>Oxygen on respawn: <span class="val" id="respawnVal">60%</span></label>
-      <input type="range" id="respawnO2" min="10" max="100" step="5" value="60" aria-label="Oxygen on respawn">
-      <label>Ambient O2 drain: <span class="val" id="drainVal">1.0×</span></label>
-      <input type="range" id="drainRate" min="0" max="200" step="10" value="100" aria-label="Ambient oxygen drain multiplier">
-      <div style="margin-top:12px;">
-        <button id="btnRestart" class="ghost">RESTART LEVEL</button>
-      </div>
+  <!-- Splash. Shown inline so it is opaque on the very first paint, before
+       any JS runs. -->
+  <div class="overlay screen" id="splashScreen" style="display:flex" aria-label="Mundus Miris">
+    <img class="screenArt" src="MundusMirisImage.png" alt="Mundus Miris">
+    <div class="screenBody">
+      <p class="screenPrompt" id="splashPrompt" aria-live="polite">LOADING…</p>
     </div>
-    <button id="controlsBtn" aria-label="Controls">CONTROLS</button>
-    <div id="controlsPanel">
-      <h3>CONTROLS</h3>
-      <div class="keys">
-        <b>WASD / Arrows</b> — move<br>
-        <b>SPACE</b> — jump (costs O2)<br>
-        <b>J</b> — swing club (costs O2)<br>
-        <b>F</b> — drop flare checkpoint<br>
-        <b>E</b> — interact / continue
+  </div>
+
+  <!-- Title + level select -->
+  <div class="overlay screen" id="titleScreen" aria-label="Level select">
+    <img class="screenArt" src="MundusMirisTitleImage.png" alt="Mundus Miris">
+    <div class="screenBody">
+      <div class="menuCard">
+        <h2>SELECT LEVEL</h2>
+        <div id="levelList">
+          <a class="levelBtn" href="level1.html">LEVEL 1 — LANDING</a>
+        </div>
+        <p class="soon">ADDITIONAL LEVELS COMING SOON</p>
+        <p class="menuHelp">↑ ↓ SELECT · E / ENTER CONFIRM · OR CLICK</p>
       </div>
     </div>
   </div>
 
-  <div id="dlg" role="status">
-    <div class="who" id="dlgWho">Commander Okwonko</div>
-    <div id="dlgText"></div>
-    <div class="press">E — CONTINUE</div>
-  </div>
-
-  <div id="hint"></div>
-
-  <div class="overlay" id="deadOverlay">
-    <div class="card">
-      <h2 id="deadTitle">FLATLINE</h2>
-      <p id="deadReason">Your suit telemetry has gone dark.</p>
-      <button id="btnRespawn">RESPAWN AT FLARE</button>
-      <button id="btnDeadRestart" class="ghost">RESTART LEVEL</button>
-    </div>
-  </div>
-
-  <div class="overlay" id="winOverlay">
-    <div class="card">
-      <h2 id="winTitle">FLAG PLANTED</h2>
-      <p id="winStats"></p>
-      <p style="color:var(--bone);">The ground begins to tremble...</p>
-      <button id="btnWinRestart">PLAY AGAIN</button>
-    </div>
-  </div>
 </div>
 
 <script>
 "use strict";
 /* ============================================================
-   MUNDUS MIRUS — Level 1 vertical slice
-   Top-down, hop-jump, oxygen-as-currency. All art procedural.
+   MUNDUS MIRIS — front matter: splash -> title/level select.
+   The levels themselves live on their own pages (level1.html), so this
+   page loads no game engine at all — just the two pieces of key art.
    ============================================================ */
 
-const TUNE = {
-  o2Max: 100, hpMax: 100,
-  drainPerSec: 0.55,       // ambient (multiplied by settings slider)
-  jumpCost: 2.0,
-  swingCost: 3.0,
-  tankRefill: 40,
-  suffocateHpPerSec: 12,
-  moveSpeed: 95,           // slow, heavy
-  jumpMs: 1000, jumpHeight: 30,
-  swingCooldown: 420, swingRange: 30,
-  startFlares: 3, craterFallPct: 0.55,
-  hazardScale: 2.5, hazardMissRadius: 25,
-};
+const splash = document.getElementById('splashScreen');
+const title  = document.getElementById('titleScreen');
+const levelBtns = Array.from(document.querySelectorAll('#levelList .levelBtn'));
 
-const S = {  // mutable game state (reset on restart)
-  o2: TUNE.o2Max, hp: TUNE.hpMax,
-  flares: TUNE.startFlares,
-  checkpoint: null,          // {x,y}
-  hasClub: false, hasFlag: false,
-  airborne: false, facing: {x:0,y:1},
-  paused: false,             // dialogue or overlay open
-  dead: false, won: false,
-  startTime: 0, deaths: 0,
-};
+let screenMode = 'splash';   // 'splash' | 'title'
+let menuGuard = 0;           // debounce so one keypress can't cross two screens
+let selIdx = 0;
 
-const ui = {
-  hp: document.getElementById('hpfill'),
-  o2: document.getElementById('o2fill'),
-  flares: document.getElementById('flareCount'),
-  hint: document.getElementById('hint'),
-  dlg: document.getElementById('dlg'),
-  dlgWho: document.getElementById('dlgWho'),
-  dlgText: document.getElementById('dlgText'),
-  dead: document.getElementById('deadOverlay'),
-  deadReason: document.getElementById('deadReason'),
-  win: document.getElementById('winOverlay'),
-  winStats: document.getElementById('winStats'),
-  settings: document.getElementById('settings'),
-  controlsPanel: document.getElementById('controlsPanel'),
-  respawnO2: document.getElementById('respawnO2'),
-  respawnVal: document.getElementById('respawnVal'),
-  drainRate: document.getElementById('drainRate'),
-  drainVal: document.getElementById('drainVal'),
-};
-
-document.getElementById('gear').onclick = () => {
-  ui.settings.style.display = ui.settings.style.display === 'block' ? 'none' : 'block';
-  ui.controlsPanel.style.display = 'none';
-};
-document.getElementById('controlsBtn').onclick = () => {
-  ui.controlsPanel.style.display = ui.controlsPanel.style.display === 'block' ? 'none' : 'block';
-  ui.settings.style.display = 'none';
-};
-ui.respawnO2.oninput = () => ui.respawnVal.textContent = ui.respawnO2.value + '%';
-ui.drainRate.oninput = () => ui.drainVal.textContent = (ui.drainRate.value/100).toFixed(1) + '×';
-document.getElementById('btnRestart').onclick = () => restartLevel();
-document.getElementById('btnDeadRestart').onclick = () => restartLevel();
-document.getElementById('btnWinRestart').onclick = () => restartLevel();
-document.getElementById('btnRespawn').onclick = () => scene && scene.respawn();
-
-let scene = null;
-function restartLevel(){ if(scene) scene.scene.restart(); }
-function hideDialog(){ ui.dlg.style.display = 'none'; }
-function setHint(text){ ui.hint.textContent = text ? 'CURRENT OBJECTIVE: '+text : ''; }
-
-/* ---------------- texture factory (all pixel art in code) --------------- */
-function makeTextures(sc){
-  const g = sc.add.graphics();
-  const T = (key,w,h,draw) => { g.clear(); draw(g); g.generateTexture(key,w,h); };
-
-  // ground tile: dark regolith with speckle
-  T('ground',64,64,g=>{
-    g.fillStyle(0x14141c); g.fillRect(0,0,64,64);
-    const rnd = new Phaser.Math.RandomDataGenerator(['regolith']);
-    for(let i=0;i<70;i++){ g.fillStyle(rnd.pick([0x1b1b26,0x10101a,0x1f1f2b]));
-      g.fillRect(rnd.between(0,62),rnd.between(0,62),rnd.between(1,3),rnd.between(1,3)); }
-  });
-
-  // astronaut 14x18 (white suit, gold visor, backpack)
-  T('astro',14,18,g=>{
-    g.fillStyle(0x9a978c); g.fillRect(2,3,10,2);          // pack top
-    g.fillStyle(0xd8d3c4); g.fillRect(3,1,8,7);           // helmet
-    g.fillStyle(0xc9a227); g.fillRect(4,3,6,3);           // visor
-    g.fillStyle(0xd8d3c4); g.fillRect(2,8,10,7);          // torso
-    g.fillStyle(0xb8b3a4); g.fillRect(1,9,2,5); g.fillRect(11,9,2,5); // arms
-    g.fillRect(3,15,3,3); g.fillRect(8,15,3,3);           // legs
-    g.fillStyle(0xb3202a); g.fillRect(6,9,2,2);           // chest patch
-  });
-  // NPC variant: teal patch
-  T('astroN',14,18,g=>{
-    g.fillStyle(0x9a978c); g.fillRect(2,3,10,2);
-    g.fillStyle(0xcfcabb); g.fillRect(3,1,8,7);
-    g.fillStyle(0x3a7bd8); g.fillRect(4,3,6,3);
-    g.fillStyle(0xcfcabb); g.fillRect(2,8,10,7);
-    g.fillStyle(0xafaa9b); g.fillRect(1,9,2,5); g.fillRect(11,9,2,5);
-    g.fillRect(3,15,3,3); g.fillRect(8,15,3,3);
-    g.fillStyle(0x3a7bd8); g.fillRect(6,9,2,2);
-  });
-
-  T('shadow',14,6,g=>{ g.fillStyle(0x000000,0.45); g.fillEllipse(7,3,13,5); });
-
-  // lander (decorative, 64x54)
-  T('lander',64,54,g=>{
-    g.fillStyle(0x5a5a66); g.fillRect(14,4,36,20);        // ascent stage
-    g.fillStyle(0x3c3c46); g.fillRect(24,8,10,10);        // hatch
-    g.fillStyle(0xc9a227); g.fillRect(10,24,44,16);       // descent gold foil
-    g.fillStyle(0xa8861f); for(let i=0;i<5;i++) g.fillRect(12+i*9,26,6,12);
-    g.fillStyle(0x777788); g.fillRect(4,38,4,14); g.fillRect(56,38,4,14);  // legs
-    g.fillRect(0,50,12,3); g.fillRect(52,50,12,3);        // pads
-    g.fillStyle(0x9aa0aa); g.fillRect(28,0,8,5);          // antenna dish
-  });
-
-  // rocks
-  T('boulder',20,16,g=>{ g.fillStyle(0x3a3a46); g.fillEllipse(10,9,19,13);
-    g.fillStyle(0x4a4a58); g.fillEllipse(8,7,10,7); g.fillStyle(0x2c2c36); g.fillRect(4,13,12,2); });
-  T('cliff',24,24,g=>{ g.fillStyle(0x23232e); g.fillRect(0,0,24,24);
-    g.fillStyle(0x2e2e3a); g.fillRect(2,2,9,8); g.fillRect(13,11,8,9);
-    g.fillStyle(0x181820); g.fillRect(0,21,24,3); });
-
-  // crater / fissure (jumpable hazards)
-  T('crater',30,20,g=>{ g.fillStyle(0x08080e); g.fillEllipse(15,10,28,17);
-    g.lineStyle(2,0x2a2a36); g.strokeEllipse(15,10,28,17); });
-  T('fissure',56,14,g=>{ g.fillStyle(0x07070c); g.fillRect(0,4,56,7);
-    g.fillRect(8,2,10,3); g.fillRect(30,10,14,3); g.lineStyle(1,0x262633); g.strokeRect(0,4,56,7); });
-
-  // oxygen tank
-  T('tank',10,16,g=>{ g.fillStyle(0x3a7bd8); g.fillRect(2,3,6,12);
-    g.fillStyle(0x6ba0e8); g.fillRect(3,4,2,9); g.fillStyle(0xd8d3c4); g.fillRect(3,0,4,3); });
-
-  // flare (dropped, lit)
-  T('flare',6,10,g=>{ g.fillStyle(0xb3202a); g.fillRect(2,2,3,8); g.fillStyle(0xffd54a); g.fillRect(2,0,3,3); });
-  T('flareGlow',40,40,g=>{ g.fillStyle(0xff5a3c,0.18); g.fillCircle(20,20,19);
-    g.fillStyle(0xffd54a,0.22); g.fillCircle(20,20,9); });
-
-  // lore plaque marker
-  T('plaque',16,12,g=>{ g.fillStyle(0x2c2c36); g.fillRect(0,0,16,12);
-    g.fillStyle(0x44445a); g.fillRect(1,1,14,10);
-    g.fillStyle(0x1c1c26); g.fillRect(3,3,10,2); g.fillRect(3,6,7,2); });
-
-  // flag + planted flag
-  T('flag',12,18,g=>{ g.fillStyle(0xb8b3a4); g.fillRect(1,0,2,18);
-    g.fillStyle(0xb3202a); g.fillRect(3,1,9,7);
-    g.fillStyle(0xd8d3c4); g.fillRect(3,3,9,2); g.fillStyle(0xc9a227); g.fillRect(4,2,3,2); });
-
-  // golf ball + club pickup
-  T('ball',5,5,g=>{ g.fillStyle(0xf2efe4); g.fillCircle(2,2,2); });
-  T('club',14,6,g=>{ g.fillStyle(0x8a8798); g.fillRect(0,2,11,2); g.fillStyle(0xc9a227); g.fillRect(10,1,4,4); });
-
-  // swing arc flash
-  T('swing',22,22,g=>{ g.lineStyle(3,0xf2efe4,0.9); g.beginPath();
-    g.arc(11,11,9,-0.8,0.8); g.strokePath(); });
-
-  // big red "definitely nothing here" arrows — plain triangles, drawn separately
-  // per direction (rather than flipping one texture) so each can use an origin
-  // set to its own visual centroid, keeping it aligned under the sign text
-  T('arrowR',24,20,g=>{ g.fillStyle(0xd4302a); g.beginPath();
-    g.moveTo(0,0); g.lineTo(24,10); g.lineTo(0,20); g.closePath(); g.fillPath(); });
-  T('arrowL',24,20,g=>{ g.fillStyle(0xd4302a); g.beginPath();
-    g.moveTo(24,0); g.lineTo(0,10); g.lineTo(24,20); g.closePath(); g.fillPath(); });
-
-  g.destroy();
+function paintSelection(){
+  levelBtns.forEach((b,i)=> b.classList.toggle('sel', i===selIdx));
+}
+function moveSelection(delta){
+  if(levelBtns.length < 2) return;
+  selIdx = (selIdx + delta + levelBtns.length) % levelBtns.length;
+  paintSelection(); levelBtns[selIdx].focus();
 }
 
-/* ------------------------------ scene ----------------------------------- */
-class Level1 extends Phaser.Scene {
-  constructor(){ super('level1'); }
-
-  create(){
-    scene = this;
-    // reset state
-    Object.assign(S,{ o2:TUNE.o2Max, hp:TUNE.hpMax, flares:TUNE.startFlares, checkpoint:null,
-      hasClub:false, hasFlag:false, airborne:false, facing:{x:0,y:1}, paused:false,
-      dead:false, won:false, startTime:this.time.now, deaths:0 });
-    ui.dead.style.display='none'; ui.win.style.display='none'; hideDialog();
-
-    makeTextures(this);
-    const W=1280, H=1900;
-    this.physics.world.setBounds(0,0,W,H);
-    this.add.tileSprite(W/2,H/2,W,H,'ground');
-
-    // starfield vignette at top edge (cosmetic)
-    for(let i=0;i<40;i++){ this.add.rectangle(Phaser.Math.Between(0,W),Phaser.Math.Between(0,40),2,2,0xd8d3c4,0.5); }
-
-    // ---- groups
-    this.cliffs = this.physics.add.staticGroup();   // never passable
-    this.hazards = this.physics.add.staticGroup();  // craters/fissures — jumpable
-    this.rocks = this.physics.add.staticGroup();    // destructible boulders
-    this.tanks = this.physics.add.staticGroup();
-    this.flarePickups = this.physics.add.staticGroup();
-
-    // ---- player (invisible physics base + visual sprite + shadow)
-    this.base = this.physics.add.image(600,1850,'shadow').setVisible(false);
-    this.base.body.setSize(12,8); this.base.setCollideWorldBounds(true); this.base.setDamping(true).setDrag(0.0008);
-    this.shadow = this.add.image(0,0,'shadow');
-    this.player = this.add.image(0,0,'astro').setScale(2);
-    this.z = 0;
-
-    // ---- lander (solid) + NPCs
-    this.lander = this.physics.add.staticImage(660,1690,'lander').setScale(2).setDepth(1690);
-    this.lander.refreshBody();
-    this.npc1 = this.addNPC(620,1780);
-    this.npc2 = this.addNPC(470,1380);
-    this.npc3 = this.addNPC(625,830);
-
-    // tanks placed right after the oxygen tutorial line, before the craters
-    this.spawnTank(480,1550); this.spawnTank(790,1600);
-
-    // golf ball
-    this.ball = this.physics.add.image(470,1410,'ball').setScale(2);
-    this.ball.setDamping(true).setDrag(0.02).setBounce(0.6).setCollideWorldBounds(true);
-    this.physics.add.collider(this.ball,this.cliffs);
-    this.physics.add.collider(this.ball,this.rocks);
-
-    // ---- course layout (bottom = start, top = summit)
-    this.buildWalls(W,H);
-
-    // jump-tutorial craters
-    this.hazard('crater',490,1620); this.hazard('crater',410,1650); this.hazard('crater',572,1650); this.hazard('crater',700,1650); this.hazard('crater',790,1665); this.hazard('crater',880,1645);
-
-    // crater field — checkerboard: craters on the "black" squares, open
-    // ground on the "white" ones. Crater hitboxes are 75x50, so spacing
-    // them closer than that on each axis makes diagonal neighbors' boxes
-    // overlap at the corners — no gap to sneak through, only jump over.
-    const cfCols=[400,465,530,595,660,725,790,855], cfRows=[1150,1190,1230,1270,1310,1350];
-    cfRows.forEach((y,ri)=>cfCols.forEach((x,ci)=>{
-      if((ci+ri)%2===0) this.hazard('crater',x,y);
-    }));
-
-    // fissures (must jump) — each row spans the full corridor width with
-    // slight overlap between bars, so there's no gap to walk around; three
-    // rows means three mandatory hops to cross the trench section
-    const trCols=[430,560,690,820], trRows=[920,1000,1080];
-    trRows.forEach(y=>trCols.forEach(x=>this.hazard('fissure',x,y)));
-
-    // destructible rock chokepoint
-    [[590,760],[625,752],[660,760],[608,782],[644,782]].forEach(p=>this.spawnRock(p[0],p[1]));
-
-    // ridge gauntlet — post-flag climb to the summit, mixing all three
-    // hazard types so the final stretch takes some jumping, some rock
-    // breaking, or both
-    // tier 1: fissure barrier — jump only
-    [[430,680],[560,680],[690,680],[820,680]].forEach(p=>this.hazard('fissure',p[0],p[1]));
-    // tier 2: funnelled rock chokepoint — destroy only (funnel walls above)
-    [[590,560],[625,552],[660,560],[608,582],[644,582]].forEach(p=>this.spawnRock(p[0],p[1]));
-    // tier 3: crater barrier — jump only
-    [400,470,540,610,680,750,820].forEach(x=>this.hazard('crater',x,440));
-    // tier 4: final approach — rocks block the west side, craters the east,
-    // so the last stretch is whichever mix of jumping and breaking you pick
-    [400,435,470,505,540,575,610].forEach(x=>this.spawnRock(x,370));
-    [650,720,790,860].forEach(x=>this.hazard('crater',x,370));
-
-    // extra tanks + bonus flare along route
-    this.spawnTank(895,1140); this.spawnTank(430,960); this.spawnTank(640,620);
-    const fp = this.flarePickups.create(500,860,'flare').setScale(2); fp.refreshBody();
-
-    // secret tunnels: reward chambers (oxygen tank + lore marker in each)
-    this.spawnTank(185,650);
-    this.add.image(150,650,'plaque').setScale(2).setDepth(650);
-    this.spawnTank(1115,350);
-    this.add.image(1150,350,'plaque').setScale(2).setDepth(350);
-
-    // summit flag zone
-    this.summit = new Phaser.Geom.Rectangle(560,230,160,90);
-    this.add.rectangle(640,275,160,90).setStrokeStyle(1,0xc9a227,0.35);
-
-    // ---- colliders
-    this.physics.add.collider(this.base,this.cliffs);
-    this.physics.add.collider(this.base,this.lander);
-    this.physics.add.collider(this.base,this.rocks);
-    this.physics.add.collider(this.base,this.hazards,null,()=> this.z===0);
-    this.physics.add.overlap(this.base,this.tanks,(b,t)=>{ if(S.o2<TUNE.o2Max-1){ S.o2=Math.min(TUNE.o2Max,S.o2+TUNE.tankRefill); this.pop(t.x,t.y,'+O2',0x6ba0e8); t.destroy(); }});
-    this.physics.add.overlap(this.base,this.flarePickups,(b,f)=>{ S.flares++; this.pop(f.x,f.y,'+FLARE',0xffd54a); f.destroy(); });
-
-    // ---- camera
-    this.cameras.main.setBounds(0,0,W,H).startFollow(this.base,true,0.12,0.12);
-    this.cameras.main.setZoom(1.4);
-
-    // ---- input
-    this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,J,F,E');
-    this.lastSwing = 0; this.dlgGuard = 0;
-
-    // ---- dialogue triggers (drain pauses while open)
-    this.triggers = [
-      // 1 — movement
-      {x:560,y:1850,r:70,who:'Commander Okwonko',text:'Welcome to the surface, rookie. Take some time to get yourself familiar with moving in low gravity. Move with WASD or the arrow keys — take it slow now, it aint a race.', auto:true},
-      // 2 — oxygen (jumping + tanks, one topic)
-      {x:572,y:1690,r:60,who:'Commander Okwonko',text:'Watch out - Craters ahead. Tap SPACE to jump — gravity is one-sixth of home, so you will hang in the air a while, and every jump burns oxygen. When you are running low, tanks like those blue cylinders up ahead will refill you — never pass one by.'},
-      // 3 — golf / weapon
-      {x:470,y:1380,r:55,who:'Captain Mayo',text:'Catch. A six iron — don\'t ask why it was on the manifest. Press J to swing. Swings burn oxygen too, so make them count. Go on, hit the ball.',
-        give:'club'},
-      // 4 — flag, positioned right before the rock chokepoint
-      {x:625,y:830,r:60,who:'King Henry',text:'Here — the flag. Plant it at the marker on the ridge north of here. Those boulders dead ahead are blocking the path — your club should crack them open. Watch for fissures higher up. Drop a flare with F if you want a checkpoint. Make us proud.',
-        cond:()=>S.hasClub, give:'flag'},
-      {x:640,y:650,r:80,who:'SUIT COMPUTER',text:'NOTICE: seismic sensors are picking up faint tremors. Probably settling dust. Probably.', cond:()=>S.hasFlag},
-      // secret side-tunnel lore
-      {x:150,y:650,r:45,who:'WEATHERED PLACARD',text:'The universe is under no obligation to make sense to you. — Neil deGrasse Tyson'},
-      {x:1150,y:350,r:45,who:'SCRATCHED STONE',text:'I tried to organize a party on the Moon, but nobody came. There was no atmosphere.'},
-    ];
-    this.triggers.forEach(t=>t.fired=false);
-
-    this.updateHUD();
-    setHint('');
-  }
-
-  /* ---------- helpers ---------- */
-  addNPC(x,y){ const n=this.add.image(x,y,'astroN').setScale(2).setDepth(y);
-    this.add.image(x,y+16,'shadow'); return n; }
-  hazard(key,x,y){ const h=this.hazards.create(x,y,key).setScale(TUNE.hazardScale); h.refreshBody(); h.setDepth(1); }
-  spawnRock(x,y){ const r=this.rocks.create(x,y,'boulder').setScale(2); r.refreshBody(); r.hp=2; r.setDepth(y); }
-  spawnTank(x,y){ const t=this.tanks.create(x,y,'tank').setScale(2); t.refreshBody(); t.setDepth(y); }
-  buildWalls(W,H){
-    const step=48;
-    const wall=(x,y)=>{ const c=this.cliffs.create(x,y,'cliff').setScale(2); c.refreshBody(); c.setDepth(2); };
-    const baffle=(x0,x1,y)=>{ for(let x=x0;x<=x1;x+=step) wall(x,y); };
-    const OUT_W=60, OUT_E=1220, COR_W=320, COR_E=950;
-    // gaps left in the corridor walls where the secret tunnels breach through
-    const westBreach=[1284,1332], eastBreach=[996,1044];
-
-    // corridor walls, skipping the breach points (boulders go there instead)
-    for(let y=180;y<H;y+=step){
-      if(!westBreach.includes(y)) wall(COR_W,y);
-      if(!eastBreach.includes(y)) wall(COR_E,y);
-    }
-    // outer boundary — seals the margins so the side channels are only
-    // reachable through the breach, not by walking around the map edge
-    for(let y=180;y<H;y+=step){ wall(OUT_W,y); wall(OUT_E,y); }
-    // top cap, now full width to seal both side channels from above
-    for(let x=OUT_W;x<=OUT_E;x+=step) wall(x,180);
-    // funnel pinches before the main rock chokepoint
-    [[380,760],[430,760],[480,760],[530,760],[860,760],[810,760],[760,760],[710,760]].forEach(p=>wall(p[0],p[1]));
-    // funnel pinch for the second rock gate in the post-flag ridge gauntlet
-    [[380,560],[430,560],[480,560],[530,560],[860,560],[810,560],[760,560],[710,560]].forEach(p=>wall(p[0],p[1]));
-
-    // west tunnel: zigzag baffles forcing a winding path
-    baffle(60,240,1150);
-    baffle(170,320,980);
-    baffle(60,240,800);
-    // east tunnel: zigzag baffles, mirrored
-    baffle(1030,1220,850);
-    baffle(950,1140,680);
-    baffle(1030,1220,500);
-
-    // boulders blocking each tunnel entrance — break with the club to enter
-    [[COR_W,1284],[COR_W,1332]].forEach(p=>this.spawnRock(p[0],p[1]));
-    [[COR_E,996],[COR_E,1044]].forEach(p=>this.spawnRock(p[0],p[1]));
-
-    // "totally not secret tunnels" signage, pointing at the rocks hiding each breach
-    // (text and arrow sit side by side on one row so the sign reads horizontally)
-    this.add.image(355,1308,'arrowL').setOrigin(0.667,0.5).setScale(1.3).setDepth(1308);
-    this.add.text(375,1308,'DEFINITELY NO SECRETS AHEAD',{fontFamily:'monospace',fontSize:'10px',color:'#d4302a'}).setOrigin(0,0.5).setDepth(1308);
-
-    this.add.text(895,1020,'DEFINITELY NO SECRETS AHEAD',{fontFamily:'monospace',fontSize:'10px',color:'#d4302a'}).setOrigin(1,0.5).setDepth(1020);
-    this.add.image(915,1020,'arrowR').setOrigin(0.333,0.5).setScale(1.3).setDepth(1020);
-  }
-  pop(x,y,txt,color){
-    const t=this.add.text(x,y,txt,{fontFamily:'monospace',fontSize:'12px',color:'#'+color.toString(16).padStart(6,'0')}).setOrigin(0.5).setDepth(9999);
-    this.tweens.add({targets:t,y:y-24,alpha:0,duration:900,onComplete:()=>t.destroy()});
-  }
-
-  /* ---------- dialogue ---------- */
-  showTrigger(t){
-    t.fired=true; S.paused=true; this.dlgGuard=this.time.now+350;
-    ui.dlgWho.textContent=t.who; ui.dlgText.textContent=t.text; ui.dlg.style.display='block';
-    this.pendingGive=t.give||null;
-  }
-  dismissDialog(){
-    ui.dlg.style.display='none'; S.paused=false;
-    if(this.pendingGive==='club'){ S.hasClub=true; this.pop(this.base.x,this.base.y-30,'CLUB GET',0xc9a227); }
-    if(this.pendingGive==='flag'){ S.hasFlag=true; this.pop(this.base.x,this.base.y-30,'FLAG GET',0xb3202a); }
-    this.pendingGive=null;
-  }
-
-  /* ---------- death / respawn / win ---------- */
-  die(reason){
-    if(S.dead||S.won) return;
-    S.dead=true; S.deaths++;
-    ui.deadReason.textContent=reason;
-    document.getElementById('btnRespawn').textContent = S.checkpoint ? 'RESPAWN AT FLARE' : 'RESPAWN AT LANDER';
-    ui.dead.style.display='flex';
-  }
-  respawn(){
-    const p=S.checkpoint||{x:600,y:1850};
-    this.base.setPosition(p.x,p.y); this.base.setVelocity(0,0);
-    S.hp=TUNE.hpMax; S.o2=TUNE.o2Max*(parseInt(ui.respawnO2.value,10)/100);
-    S.dead=false; ui.dead.style.display='none';
-  }
-  winLevel(){
-    if(S.won) return; S.won=true;
-    const secs=Math.round((this.time.now-S.startTime)/1000);
-    const flag=this.add.image(this.base.x,this.base.y-14,'flag').setScale(2).setDepth(9999);
-    this.tweens.add({targets:flag,y:flag.y-6,duration:300,yoyo:true});
-    ui.winStats.textContent=`Time ${Math.floor(secs/60)}:${String(secs%60).padStart(2,'0')} · Deaths ${S.deaths} · Flares left ${S.flares}`;
-    this.time.delayedCall(700,()=>{ ui.win.style.display='flex'; this.cameras.main.shake(600,0.004); });
-  }
-
-  /* ---------- per-frame ---------- */
-  update(time,dt){
-    if(S.dead||S.won){ this.base.setVelocity(0,0); this.syncVisuals(); return; }
-    const k=this.keys, sec=dt/1000;
-
-    // dialogue handling
-    if(S.paused){
-      this.base.setVelocity(0,0);
-      if(Phaser.Input.Keyboard.JustDown(k.E) && time>this.dlgGuard) this.dismissDialog();
-      this.syncVisuals(); this.updateHUD(); return;
-    }
-    for(const t of this.triggers){
-      if(!t.fired && (!t.cond||t.cond()) &&
-         Phaser.Math.Distance.Between(this.base.x,this.base.y,t.x,t.y)<t.r){ this.showTrigger(t); break; }
-    }
-
-    // movement
-    let vx=0,vy=0;
-    if(k.A.isDown||k.LEFT.isDown)vx=-1; else if(k.D.isDown||k.RIGHT.isDown)vx=1;
-    if(k.W.isDown||k.UP.isDown)vy=-1; else if(k.S.isDown||k.DOWN.isDown)vy=1;
-    if(vx||vy){ const n=Math.hypot(vx,vy); S.facing={x:vx/n,y:vy/n};
-      this.base.setVelocity(vx/n*TUNE.moveSpeed, vy/n*TUNE.moveSpeed);
-    } else this.base.setVelocity(0,0);
-
-    // jump
-    if(Phaser.Input.Keyboard.JustDown(k.SPACE) && !S.airborne){
-      S.airborne=true; S.o2=Math.max(0,S.o2-TUNE.jumpCost);
-      this.tweens.addCounter({from:0,to:Math.PI,duration:TUNE.jumpMs,
-        onUpdate:tw=>{ this.z=Math.sin(tw.getValue())*TUNE.jumpHeight; },
-        onComplete:()=>{ this.z=0; S.airborne=false;
-          // landed inside a hazard? take a tumble + O2 hit, nudge out
-          const hit=this.hazards.getChildren().find(h=>Phaser.Math.Distance.Between(h.x,h.y,this.base.x,this.base.y)<TUNE.hazardMissRadius);
-          if(hit){ S.hp=Math.max(0,S.hp-TUNE.hpMax*TUNE.craterFallPct); S.o2=Math.max(0,S.o2-4);
-            this.cameras.main.shake(120,0.006); this.pop(this.base.x,this.base.y-24,'ROUGH LANDING',0xb3202a);
-            this.base.setPosition(this.base.x,hit.y+34); }
-        }});
-    }
-
-    // swing
-    if(Phaser.Input.Keyboard.JustDown(k.J) && S.hasClub && !S.airborne && time-this.lastSwing>TUNE.swingCooldown){
-      this.lastSwing=time; S.o2=Math.max(0,S.o2-TUNE.swingCost);
-      const sx=this.base.x+S.facing.x*18, sy=this.base.y-8+S.facing.y*18;
-      const arc=this.add.image(sx,sy,'swing').setScale(2).setDepth(9998)
-        .setRotation(Math.atan2(S.facing.y,S.facing.x));
-      this.tweens.add({targets:arc,alpha:0,duration:180,onComplete:()=>arc.destroy()});
-      // hit rocks
-      this.rocks.getChildren().slice().forEach(r=>{
-        if(Phaser.Math.Distance.Between(r.x,r.y,sx,sy)<TUNE.swingRange){
-          r.hp--; this.cameras.main.shake(80,0.004);
-          if(r.hp<=0){ this.pop(r.x,r.y,'CRACK',0xd8d3c4); r.destroy(); }
-          else r.setTint(0x9a9aa8);
-        }});
-      // hit ball
-      if(Phaser.Math.Distance.Between(this.ball.x,this.ball.y,sx,sy)<TUNE.swingRange){
-        this.ball.setVelocity(S.facing.x*260,S.facing.y*260); this.pop(this.ball.x,this.ball.y,'FORE!',0xc9a227);
-      }
-    }
-
-    // flare checkpoint
-    if(Phaser.Input.Keyboard.JustDown(k.F)){
-      if(S.flares>0){ S.flares--; S.checkpoint={x:this.base.x,y:this.base.y};
-        this.add.image(this.base.x,this.base.y,'flareGlow').setDepth(1);
-        this.add.image(this.base.x,this.base.y,'flare').setScale(2).setDepth(this.base.y-1);
-        this.pop(this.base.x,this.base.y-24,'CHECKPOINT',0xffd54a);
-      } else this.pop(this.base.x,this.base.y-24,'NO FLARES',0xb3202a);
-    }
-
-    // flag plant
-    const atSummit=Phaser.Geom.Rectangle.Contains(this.summit,this.base.x,this.base.y);
-    if(atSummit && S.hasFlag){
-      setHint('E — PLANT THE FLAG');
-      ui.hint.classList.add('flag-ready');
-      if(Phaser.Input.Keyboard.JustDown(k.E) && time>this.dlgGuard) this.winLevel();
-    } else {
-      ui.hint.classList.remove('flag-ready');
-      setHint(!S.hasClub ? 'FIND CAPTAIN MAYO WEST OF THE LANDER'
-        : !S.hasFlag ? 'MAJ IDRIS HAS THE FLAG AT THE LANDER'
-        : 'HEAD NORTH — PLANT THE FLAG ON THE RIDGE');
-    }
-
-    // oxygen economy
-    const mult=parseInt(ui.drainRate.value,10)/100;
-    S.o2=Math.max(0,S.o2-TUNE.drainPerSec*mult*sec);
-    if(S.o2<=0){ S.hp=Math.max(0,S.hp-TUNE.suffocateHpPerSec*sec); }
-    if(S.hp<=0) this.die(S.o2<=0 ? 'Oxygen depleted. The suit kept you moving longer than it should have.' : 'A hard fall cracked your suit seals. Vitals gone.');
-
-    this.syncVisuals(); this.updateHUD();
-  }
-
-  syncVisuals(){
-    this.shadow.setPosition(this.base.x,this.base.y+4).setScale(1.6-this.z/40);
-    this.player.setPosition(this.base.x,this.base.y-14-this.z).setDepth(this.base.y);
-  }
-  updateHUD(){
-    ui.hp.style.width=(S.hp/TUNE.hpMax*100)+'%';
-    ui.o2.style.width=(S.o2/TUNE.o2Max*100)+'%';
-    ui.o2.classList.toggle('low',S.o2<25);
-    ui.flares.textContent='FLARES ×'+S.flares;
+function setScreen(next){
+  screenMode = next;
+  // .overlay pre-sets flex, so 'flex' is the show idiom here (not 'block')
+  splash.style.display = next==='splash' ? 'flex' : 'none';
+  title.style.display  = next==='title'  ? 'flex' : 'none';
+  menuGuard = performance.now() + 180;
+  if(next==='title'){
+    paintSelection();
+    requestAnimationFrame(()=> levelBtns[selIdx] && levelBtns[selIdx].focus());
   }
 }
 
-new Phaser.Game({
-  type: Phaser.AUTO,
-  parent: 'game',
-  width: 840, height: 620,
-  pixelArt: true,
-  backgroundColor: '#0a0a12',
-  physics: { default:'arcade', arcade:{ debug:false } },
-  scene: [Level1],
+splash.addEventListener('click', ()=>{ if(screenMode==='splash') setScreen('title'); });
+levelBtns.forEach((b,i)=>{
+  b.addEventListener('mouseenter', ()=>{ selIdx=i; paintSelection(); });
+  b.addEventListener('focus',      ()=>{ selIdx=i; paintSelection(); });
 });
+
+window.addEventListener('keydown', e => {
+  if(e.repeat) return;                        // held E must not cross both screens
+  if(performance.now() < menuGuard) return;   // fast double-tap debounce
+  const k = e.key;
+  if(screenMode==='splash'){
+    if(k==='e'||k==='E'||k==='Enter'){ e.preventDefault(); setScreen('title'); }
+    return;
+  }
+  if(k==='ArrowUp'||k==='w'||k==='W'){ e.preventDefault(); moveSelection(-1); }
+  else if(k==='ArrowDown'||k==='s'||k==='S'){ e.preventDefault(); moveSelection(1); }
+  else if(k==='e'||k==='E'){ e.preventDefault(); levelBtns[selIdx] && levelBtns[selIdx].click(); }
+  else if(k==='Escape'){ e.preventDefault(); setScreen('splash'); }
+  // Enter on a focused link is left to the browser's native activation
+});
+
+/* Hold the prompt back until the splash art is actually on screen, so the
+   first thing a visitor sees isn't "PRESS E" over an empty frame. */
+(function primeSplash(){
+  let done=false;
+  const prompt = document.getElementById('splashPrompt');
+  const ready = ()=>{ if(done) return; done=true;
+    prompt.textContent='PRESS E TO CONTINUE'; prompt.classList.add('ready'); };
+  const img = new Image(); img.src='MundusMirisImage.png';
+  (img.decode ? img.decode() : Promise.reject()).then(ready).catch(()=>{
+    if(img.complete) ready(); else { img.onload=ready; img.onerror=ready; }
+  });
+  setTimeout(ready,3000);   // failsafe: never stuck on LOADING…
+})();
+
+/* Coming back from a level (index.html#levels) should land on the level list,
+   not replay the splash. */
+setScreen(location.hash === '#levels' ? 'title' : 'splash');
 </script>
 </body>
 </html>
