@@ -183,6 +183,9 @@ const L3 = {
     [[280,330],[1000,330],[280,530],[1000,530],[700,545]]
       .forEach(p=> sc.spawnTank(p[0],p[1]));
     sc.boss = sc.spawnCrawler(640,400,true);
+    /* Nest interior is x 184-1096, y 274-576; inset by the boss's own half-size
+       (it is 75x102 at scale 3.4) so it never clips into the walls or the gate. */
+    sc.boss.arena = {x0:230, x1:1050, y0:330, y1:520};
 
     // ---- the exit beacon, above the nest
     const bc = sc.add.image(640,195,'beacon').setScale(2).setDepth(195);
@@ -201,7 +204,9 @@ const L3 = {
         (sc.npcSprites||[]).forEach(n=>{ if(n.shadowRef) n.shadowRef.destroy(); n.destroy(); });
         sc.npcSprites = [];
       }},
-    {x:640,y:660,r:80,who:'SUIT COMPUTER',text:'WARNING: mass reading in the chamber ahead. It is larger than anything that should be alive here, and it is between you and the only way on. Recommend withdrawal. There is no route that permits withdrawal.'},
+    {x:640,y:660,r:80,who:'SUIT COMPUTER',text:'WARNING: mass reading in the chamber ahead. It is larger than anything that should be alive here, and it is between you and the only way on. Recommend withdrawal. There is no route that permits withdrawal.',
+      // this is what wakes IT — before this line it does not move at all
+      effect:(sc)=>{ if(sc.boss && sc.boss.active) sc.boss.dormant = false; }},
     // the choice — only after IT is down
     {x:640,y:300,r:70,who:'Captain Mayo',text:'You came back. Cannot feel my legs, rookie. You can carry me and we both go slow — or you leave me and you go fast. Your call. Make it quick.',
       cond:()=> S.phase>=2,
@@ -1017,6 +1022,11 @@ class LevelScene extends Phaser.Scene {
     e.hp = C.hp; e.isBoss = !!boss; e.lastTouch = 0;
     e.state = 'idle'; e.stateAt = 0;
     e.home = {x,y};
+    if(boss){
+      // asleep until the level wakes it, and penned to its chamber once awake
+      e.dormant = true;
+      e.arena = null;
+    }
     return e;
   }
   updateCrawlers(time, sec){
@@ -1028,6 +1038,27 @@ class LevelScene extends Phaser.Scene {
       e.setDepth(e.y);
 
       if(e.isBoss){
+        // It does not stir until the level wakes it, so it cannot come down
+        // the corridor and meet you before you have been warned about it.
+        if(e.dormant){ e.setVelocity(0,0); return; }
+        /* Penned to its chamber. Without this it will follow you back out
+           through the doorway and fight you in a one-lane corridor, which is
+           both unfair and ruins the reveal. The clamp is a hard guarantee —
+           a lunge in progress can otherwise carry it through the gap. */
+        if(e.arena){
+          const a = e.arena;
+          e.x = Phaser.Math.Clamp(e.x, a.x0, a.x1);
+          e.y = Phaser.Math.Clamp(e.y, a.y0, a.y1);
+          const playerIn = px>a.x0-60 && px<a.x1+60 && py>a.y0-60 && py<a.y1+60;
+          if(!playerIn){
+            // you left: go back to the middle and wait
+            e.clearTint(); e.state='idle';
+            if(Phaser.Math.Distance.Between(e.x,e.y,e.home.x,e.home.y) > 24)
+              this.physics.moveTo(e, e.home.x, e.home.y, C.lungeSpeed*0.35);
+            else e.setVelocity(0,0);
+            return;
+          }
+        }
         // wind up -> lunge -> rest, so the player gets a fair read on it
         if(e.state==='idle' && d < C.aggroRadius){ e.state='wind'; e.stateAt=time; }
         else if(e.state==='wind'){
