@@ -22,7 +22,35 @@ const TUNE = {
   swingCooldown: 420, swingRange: 30,
   startFlares: 3, craterFallPct: 0.55,
   hazardScale: 2.5, hazardMissRadius: 25,
+
+  /* Meteor shower (Level 2). Tuned for "tense but survivable": a strike
+     group every 1.5-2.1s, mostly landing near the player rather than on
+     them. `tell` must stay above jumpMs/1000 so a player caught mid-hop
+     can still land and walk clear. */
+  meteor: {
+    gapMin: 1.5, gapMax: 2.1,   // seconds between volleys
+    perVolley: 3,               // 1 aimed + 2 lattice
+    tell: 1.1,                  // telegraph seconds — must exceed jumpMs (1.0s)
+                                // or a player who jumps as the marker appears
+                                // lands exactly on impact with no slack
+    stagger: 0.14,              // extra tell per rock, so hits read separately
+    radius: 26,                 // kill radius AND the drawn ring radius
+    dmgPct: 0.55,               // same bite as a bad crater landing
+    iFrames: 700,               // ms immunity — caps one volley at a single hit
+    grace: 2.5,                 // quiet seconds after spawn/respawn
+    aimJitter: 34,              // px scatter on the aimed rock
+    lead: 0.5,                  // fraction of tell to lead the player's heading
+    grid: 70,                   // lattice pitch (echoes the crater-field pitch)
+    fallH: 170,                 // px the rock visually falls
+    maxScars: 60,               // ring-buffer cap on decorative impact marks
+    shelter: [330, 940],        // no strikes while inside a side tunnel
+  },
 };
+
+/* Honour the OS reduced-motion setting for the impact shake, as the menu
+   page already does for its prompt pulse. */
+const REDUCED_MOTION = !!(window.matchMedia &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
 const S = {  // mutable game state (reset on restart)
   o2: TUNE.o2Max, hp: TUNE.hpMax,
@@ -43,6 +71,7 @@ const DEATHS = {
                img:'assets/MundusMirisFallDeathImage.png' },
   suffocate: { reason:'Oxygen depleted. The suit kept you moving longer than it should have.',
                img:'assets/MundusMirisSuffocationDeathImage.png' },
+  meteor:    { reason:'A strike caught you in the open. The suit did not hold.', img:null },
   unknown:   { reason:'Your suit telemetry has gone dark.', img:null },
 };
 
@@ -89,6 +118,43 @@ const LEVELS = {
         cond:()=>S.hasClub, give:'flag'},
       {x:640,y:650,r:80,who:'SUIT COMPUTER',text:'NOTICE: seismic sensors are picking up faint tremors. Probably settling dust. Probably.', cond:()=>S.hasFlag},
       // secret side-tunnel lore
+      {x:150,y:650,r:45,who:'WEATHERED PLACARD',text:'The universe is under no obligation to make sense to you. — Neil deGrasse Tyson'},
+      {x:1150,y:350,r:45,who:'SCRATCHED STONE',text:'I tried to organize a party on the Moon, but nobody came. There was no atmosphere.'},
+    ],
+  },
+
+  2: {
+    id: 'level2',
+    name: 'LEVEL 2 - DEATH FROM ABOVE',
+    title: 'MUNDUS MIRIS — Level 2: Death From Above',
+    spawn: {x:640, y:275},           // the summit — where Level 1 ended
+    start: {hasClub:true, hasFlag:false},
+    ball: {x:470, y:1410},
+    npcs: [],                        // Mayo is a trigger at the lander instead
+    /* Level 1's two gates were smashed on the way up, so they are absent.
+       In their place, meteor rubble in new spots. Each band covers about
+       two-thirds of the corridor and alternates sides, so the descent
+       zigzags — under a shower, walking 300px sideways is cost enough
+       without making the player stop and smash a full wall. */
+    rocks: [
+      // band 1 (y=500) — east side, between the crater barrier and the funnel
+      [620,500],[660,500],[700,500],[740,500],[780,500],[820,500],[860,500],[900,500],
+      // band 2 (y=640) — west side, between the funnel and the fissure row
+      [400,640],[440,640],[480,640],[520,640],[560,640],[600,640],[640,640],
+      // band 3 (y=1450) — split, with a gap at x 560-740; last gate before home
+      [380,1450],[420,1450],[460,1450],[500,1450],[540,1450],
+      [760,1450],[800,1450],[840,1450],[880,1450],
+    ],
+    meteors: true,
+    goal: {mode:'trigger'},          // no zone: Mayo's win trigger ends it
+    win: {title:'DUST OFF',
+          flavor:'The hatch seals. Behind you, the ridge comes apart.'},
+    hint: ()=> 'RUN — GET BACK TO THE LANDER',
+    triggers: [
+      {x:640,y:290,r:90,who:'Commander Okwonko',text:'Meteor shower incoming, Rookie — get your ass back to the lander. NOW! Watch the sky: where the ground lights up red, something is already on its way down.'},
+      {x:585,y:1760,r:70,who:'Captain Mayo',text:'In! Get in! Hatch is cycling — hell of a round, rookie. Remind me never to let you pick the course again.',
+        win:true},
+      // the side tunnels are still there, and still worth the detour
       {x:150,y:650,r:45,who:'WEATHERED PLACARD',text:'The universe is under no obligation to make sense to you. — Neil deGrasse Tyson'},
       {x:1150,y:350,r:45,who:'SCRATCHED STONE',text:'I tried to organize a party on the Moon, but nobody came. There was no atmosphere.'},
     ],
@@ -260,6 +326,24 @@ function makeTextures(sc){
   T('swing',22,22,g=>{ g.lineStyle(3,0xf2efe4,0.9); g.beginPath();
     g.arc(11,11,9,-0.8,0.8); g.strokePath(); });
 
+  // meteor telegraph. Its own texture rather than a tinted flareGlow, which is
+  // the checkpoint colour — teaching that a lethal ring is a safe one would be
+  // actively harmful. Drawn at exactly TUNE.meteor.radius, and never resized,
+  // so the ring can't lie about where the damage lands.
+  T('target',32,32,g=>{
+    g.lineStyle(2,0xd4302a,0.95); g.strokeCircle(16,16,14);
+    g.lineStyle(2,0xd4302a,0.6);
+    g.lineBetween(16,0,16,6);   g.lineBetween(16,26,16,32);
+    g.lineBetween(0,16,6,16);   g.lineBetween(26,16,32,16);
+  });
+  // impact scar — deliberately NOT crater-shaped, so a cosmetic mark is never
+  // mistaken for a hazard you have to jump
+  T('impact',24,16,g=>{
+    g.fillStyle(0x1a1016); g.fillEllipse(12,8,22,13);
+    g.fillStyle(0x2a1a1e); g.fillEllipse(12,8,12,7);
+    g.fillStyle(0x0e0e14); g.fillEllipse(12,8,5,3);
+  });
+
   // big red "definitely nothing here" arrows — plain triangles, drawn separately
   // per direction (rather than flipping one texture) so each can use an origin
   // set to its own visual centroid, keeping it aligned under the sign text
@@ -402,6 +486,15 @@ class LevelScene extends Phaser.Scene {
     this.triggers = cfg.triggers.map(t=>Object.assign({},t));
     this.triggers.forEach(t=>t.fired=false);
 
+    // ---- meteor shower. Arrays are rebuilt here rather than relied on to
+    // survive: scene.restart() destroys the game objects but leaves these
+    // holding dead references.
+    this.meteorsOn = !!cfg.meteors;
+    this.meteors = [];
+    this.scars = [];
+    this.meteorTimer = TUNE.meteor.grace;
+    this.lastMeteorHit = 0;
+
     this.updateHUD();
     setHint('');
   }
@@ -456,6 +549,103 @@ class LevelScene extends Phaser.Scene {
     this.add.text(895,1020,'DEFINITELY NO SECRETS AHEAD',{fontFamily:'monospace',fontSize:'10px',color:'#d4302a'}).setOrigin(1,0.5).setDepth(1020);
     this.add.image(915,1020,'arrowR').setOrigin(0.333,0.5).setScale(1.3).setDepth(1020);
   }
+  /* ---------- meteor shower ----------
+     Driven entirely from update(), never from Phaser timers or tweens. That
+     is deliberate: update() already returns early on death, win and dialogue
+     (see its first two blocks), so meteors inherit all three gates for free.
+     A time.addEvent scheduler would keep raining rocks onto the death screen
+     and detonate mid-dialogue, when input is swallowed and the player cannot
+     dodge — unavoidable damage. Frozen mid-telegraph is the correct pause
+     behaviour: 0.4s from impact when a trigger fires is still 0.4s from
+     impact when it is dismissed. */
+  clearMeteors(){
+    this.meteors.forEach(m=>{ m.ring.destroy(); m.clock.destroy(); m.rock.destroy(); });
+    this.meteors.length = 0;
+    this.meteorTimer = TUNE.meteor.grace;
+    this.lastMeteorHit = 0;
+  }
+  addScar(x,y){
+    // Cosmetic only. Real hazards here would seal the corridor: at ~30 strikes
+    // a minute, random craters reach the crater-field's own "no gap to sneak
+    // through" density within a minute, and a walled-in player just suffocates.
+    const s = this.add.image(x,y,'impact').setScale(2).setDepth(0).setAlpha(0.7);
+    this.scars.push(s);
+    if(this.scars.length > TUNE.meteor.maxScars) this.scars.shift().destroy();
+  }
+  addMeteor(x,y,i){
+    const M = TUNE.meteor;
+    x = Phaser.Math.Clamp(x, 350, 920);    // corridor interior, walls at 320/950
+    y = Phaser.Math.Clamp(y, 200, 1880);
+    const t = M.tell + i*M.stagger;
+    const ring  = this.add.image(x,y,'target').setDepth(1)
+                      .setDisplaySize(M.radius*2, M.radius*2);
+    const clock = this.add.circle(x,y,M.radius,0xd4302a,0.22).setDepth(1).setScale(0);
+    const rock  = this.add.image(x, y-M.fallH, 'boulder').setScale(1).setDepth(9997);
+    this.meteors.push({x,y,t,t0:t,ring,clock,rock});
+  }
+  spawnVolley(){
+    const M = TUNE.meteor, b = this.base, v = b.body.velocity, J = M.aimJitter;
+    // one aimed strike, led half a telegraph along the player's heading, with
+    // enough jitter that it usually lands near them rather than exactly on them
+    this.addMeteor(b.x + v.x*M.tell*M.lead + Phaser.Math.Between(-J,J),
+                   b.y + v.y*M.tell*M.lead + Phaser.Math.Between(-J,J), 0);
+    // the rest land on a lattice snapped around the player, so standing still
+    // is never safe either
+    const G = M.grid;
+    const gx = Math.round(b.x/G)*G, gy = Math.round(b.y/G)*G;
+    const cells = Phaser.Utils.Array.Shuffle(
+      [[-2,-1],[-1,-2],[1,-2],[2,-1],[-2,1],[-1,2],[1,2],[2,1],[-1,-1],[1,1],[-1,1],[1,-1]]);
+    for(let i=1;i<M.perVolley;i++){
+      const c = cells[i-1];
+      this.addMeteor(gx + c[0]*G, gy + c[1]*G, i);
+    }
+  }
+  meteorImpact(time, m){
+    const M = TUNE.meteor;
+    m.ring.destroy(); m.clock.destroy(); m.rock.destroy();
+    this.addScar(m.x, m.y);
+    const d = Phaser.Math.Distance.Between(this.base.x, this.base.y, m.x, m.y);
+    // shake scales with proximity and stops entirely far off — 30+ full-strength
+    // shakes a minute would be unplayable
+    if(d < 150 && !REDUCED_MOTION) this.cameras.main.shake(110, 0.006*(1-d/150));
+    // i-frames matter: without them a volley landing around a cornered player
+    // deals 3x55% at once, which is death with no counterplay
+    if(d < M.radius && time - this.lastMeteorHit > M.iFrames){
+      this.lastMeteorHit = time;
+      this.damage(TUNE.hpMax*M.dmgPct, 'meteor');
+      S.o2 = Math.max(0, S.o2-4);
+      this.pop(this.base.x, this.base.y-24, 'DIRECT HIT', 0xb3202a);
+    }
+  }
+  updateMeteors(time, sec){
+    if(!this.meteorsOn) return;
+    const M = TUNE.meteor;
+    for(let i=this.meteors.length-1; i>=0; i--){
+      const m = this.meteors[i];
+      m.t -= sec;
+      if(m.t > 0){
+        const p = 1 - m.t/m.t0;                 // 0 -> 1 as impact nears
+        m.ring.setAlpha(0.30 + 0.55*p);         // brightens, never resizes
+        m.clock.setScale(p);                    // the filled circle is the clock
+        m.rock.setPosition(m.x, m.y - M.fallH*(1-p)).setScale(1 + 0.9*p);
+        continue;
+      }
+      this.meteorImpact(time, m);
+      this.meteors.splice(i,1);
+    }
+    // Side tunnels are shelter: a breather, a reward for having found them in
+    // Level 1, and it avoids meteors detonating against cliffs off-screen.
+    if(this.base.x < M.shelter[0] || this.base.x > M.shelter[1]){
+      this.meteorTimer = Math.max(this.meteorTimer, 0.4);  // brief re-arm on exit
+      return;
+    }
+    this.meteorTimer -= sec;
+    if(this.meteorTimer <= 0){
+      this.meteorTimer = Phaser.Math.FloatBetween(M.gapMin, M.gapMax);
+      this.spawnVolley();
+    }
+  }
+
   pop(x,y,txt,color){
     const t=this.add.text(x,y,txt,{fontFamily:'monospace',fontSize:'12px',color:'#'+color.toString(16).padStart(6,'0')}).setOrigin(0.5).setDepth(9999);
     this.tweens.add({targets:t,y:y-24,alpha:0,duration:900,onComplete:()=>t.destroy()});
@@ -501,6 +691,9 @@ class LevelScene extends Phaser.Scene {
     this.base.setPosition(p.x,p.y); this.base.setVelocity(0,0);
     S.hp=TUNE.hpMax; S.o2=TUNE.o2Max*(parseInt(ui.respawnO2.value,10)/100);
     S.dead=false; S.deathCause=null; ui.dead.style.display='none';
+    // drop anything still in the air, or a strike queued before you died lands
+    // on the respawned player instantly
+    this.clearMeteors();
   }
   winLevel(){
     if(S.won) return; S.won=true;
@@ -579,6 +772,11 @@ class LevelScene extends Phaser.Scene {
         this.pop(this.base.x,this.base.y-24,'CHECKPOINT',0xffd54a);
       } else this.pop(this.base.x,this.base.y-24,'NO FLARES',0xb3202a);
     }
+
+    // meteors — placed after the dead/won and paused early-returns above, so
+    // they stop with everything else, and before the oxygen block below, so a
+    // meteor kill is what gets reported rather than simultaneous asphyxiation
+    this.updateMeteors(time, sec);
 
     // goal zone (Level 1 plants the flag here; Level 2 has no zone and wins
     // from Mayo's trigger at the lander instead)

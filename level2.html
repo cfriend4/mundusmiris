@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MUNDUS MIRIS — Level 2: Death From Above</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+<link rel="stylesheet" href="game.css">
+<link rel="stylesheet" href="level.css">
+</head>
+<body>
+<!-- Chrome only. Every level page carries this same inert markup; the text
+     that differs per level is written by applyChrome() from the config. -->
+<div id="wrap">
+  <div id="game"></div>
+
+  <div id="hud">
+    <div class="barlabel">Vitals</div>
+    <div class="bar"><div id="hpfill"></div></div>
+    <div class="barlabel">Oxygen</div>
+    <div class="bar"><div id="o2fill"></div></div>
+  </div>
+
+  <div id="meta">
+    <div id="levelName">LEVEL 2 - DEATH FROM ABOVE</div>
+    <div class="flare" id="flareCount">FLARES ×3</div>
+  </div>
+  <div id="menuStack">
+    <button id="gear" aria-label="Settings">SETTINGS</button>
+    <div id="settings">
+      <h3>SETTINGS</h3>
+      <label>Oxygen on respawn: <span class="val" id="respawnVal">60%</span></label>
+      <input type="range" id="respawnO2" min="10" max="100" step="5" value="60" aria-label="Oxygen on respawn">
+      <label>Ambient O2 drain: <span class="val" id="drainVal">1.0×</span></label>
+      <input type="range" id="drainRate" min="0" max="200" step="10" value="100" aria-label="Ambient oxygen drain multiplier">
+      <div style="margin-top:12px;">
+        <button id="btnRestart" class="ghost">RESTART LEVEL</button>
+      </div>
+    </div>
+    <button id="controlsBtn" aria-label="Controls">CONTROLS</button>
+    <div id="controlsPanel">
+      <h3>CONTROLS</h3>
+      <div class="keys">
+        <b>WASD / Arrows</b> — move<br>
+        <b>SPACE</b> — jump (costs O2)<br>
+        <b>J</b> — swing club (costs O2)<br>
+        <b>F</b> — drop flare checkpoint<br>
+        <b>E</b> — interact / continue
+      </div>
+    </div>
+  </div>
+
+  <div id="dlg" role="status">
+    <div class="who" id="dlgWho">Commander Okwonko</div>
+    <div id="dlgText"></div>
+    <div class="press">E — CONTINUE</div>
+  </div>
+
+  <div id="hint"></div>
+
+  <div class="overlay" id="deadOverlay">
+    <div class="card">
+      <img id="deadArt" class="deathArt" alt="">
+      <h2 id="deadTitle">FLATLINE</h2>
+      <p id="deadReason">Your suit telemetry has gone dark.</p>
+      <button id="btnRespawn">RESPAWN AT FLARE</button>
+      <button id="btnDeadRestart" class="ghost">RESTART LEVEL</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="winOverlay">
+    <div class="card">
+      <h2 id="winTitle">DUST OFF</h2>
+      <p id="winStats"></p>
+      <p id="winFlavor" style="color:var(--bone);">The hatch seals. Behind you, the ridge comes apart.</p>
+      <button id="btnWinRestart">PLAY AGAIN</button>
+      <a class="btnlink" href="index.html#levels">LEVEL SELECT</a>
+    </div>
+  </div>
+</div>
+
+<script src="game.js"></script>
+<script>startGame(2);</script>
+</body>
+</html>

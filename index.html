@@ -29,7 +29,9 @@
     display:inline-block; padding:16px 26px;}
   .menuCard h2{font-size:12px; letter-spacing:4px; color:var(--gold); margin-bottom:10px;}
   /* Real links, so mouse, keyboard, back button and middle-click all just work */
-  .levelBtn{display:block; width:250px; margin:5px auto; background:transparent;
+  /* 300px, not 250: "LEVEL 2 - DEATH FROM ABOVE" is 26 chars, which needs
+     ~257px at 12px Courier with 2px letter-spacing plus padding. */
+  .levelBtn{display:block; width:300px; margin:5px auto; background:transparent;
     color:var(--bone); border:1px solid var(--line); font-family:inherit;
     font-size:12px; letter-spacing:2px; padding:9px; cursor:pointer;
     text-decoration:none;}
@@ -37,8 +39,7 @@
     background:rgba(201,162,39,.10);}
   .levelBtn:focus{outline:none;}
   .levelBtn:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
-  .soon{font-size:10px; letter-spacing:2px; color:var(--dim); margin-top:12px;}
-  .menuHelp{font-size:10px; letter-spacing:1px; color:var(--dim); margin-top:8px;}
+  .menuHelp{font-size:10px; letter-spacing:1px; color:var(--dim); margin-top:12px;}
 
   @media (prefers-reduced-motion: reduce){
     .screenPrompt.ready{animation:none;}
@@ -65,8 +66,8 @@
         <h2>SELECT LEVEL</h2>
         <div id="levelList">
           <a class="levelBtn" href="level1.html">LEVEL 1 — LANDING</a>
+          <a class="levelBtn" href="level2.html">LEVEL 2 - DEATH FROM ABOVE</a>
         </div>
-        <p class="soon">ADDITIONAL LEVELS COMING SOON</p>
         <p class="menuHelp">↑ ↓ SELECT · E / ENTER CONFIRM · OR CLICK</p>
       </div>
     </div>
