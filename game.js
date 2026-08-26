@@ -51,9 +51,11 @@ const TUNE = {
   flashlight: {
     range: 105,               // ~3 steps, about a third of the way to the
                               // screen edge — you outrun your own light
-    coneDeg: 95,              // beam width
-    ambient: 0.90,            // darkness opacity: near-black, not total
-    halo: 30,                 // small always-lit circle around the player
+    coneDeg: 42,              // a real beam: what you point at, nothing else
+    rays: 26,                 // rays across the cone; more = smoother edge
+    rayStep: 6,               // px per occlusion probe along a ray
+    ambient: 0.94,            // darkness opacity outside the beam
+    halo: 20,                 // just enough to see your own suit
   },
   crawler: {
     hp: 3,                    // swings to kill (rocks take 2)
@@ -942,36 +944,69 @@ class LevelScene extends Phaser.Scene {
     const F = TUNE.flashlight;
     this.dark = this.add.renderTexture(0,0,840,620)
       .setOrigin(0,0).setScrollFactor(0).setDepth(9000);
-    this.beam = this.make.image({key:'lightBlob', add:false}).setOrigin(0.5,0.5);
     this.halo = this.make.image({key:'lightBlob', add:false}).setOrigin(0.5,0.5)
       .setScale(F.halo/64);
+    this.beamPoly = this.make.graphics({add:false});
+    this.buildWallIndex();
+  }
+  /* Bucket every wall tile by 48px cell so "is this point solid?" is a map
+     lookup plus a couple of compares, instead of scanning hundreds of tiles.
+     A tile can straddle up to four buckets, so it goes in all of them. */
+  buildWallIndex(){
+    const B = 48;
+    this.wallIdx = new Map();
+    this.cliffs.getChildren().forEach(c=>{
+      for(let bx=Math.floor((c.x-24)/B); bx<=Math.floor((c.x+24)/B); bx++)
+        for(let by=Math.floor((c.y-24)/B); by<=Math.floor((c.y+24)/B); by++){
+          const k = bx+','+by;
+          let a = this.wallIdx.get(k);
+          if(!a){ a=[]; this.wallIdx.set(k,a); }
+          a.push(c);
+        }
+    });
+  }
+  solidAt(x,y){
+    if(!this.wallIdx) return false;
+    const B = 48;
+    const a = this.wallIdx.get(Math.floor(x/B)+','+Math.floor(y/B));
+    if(!a) return false;
+    for(const c of a) if(Math.abs(x-c.x)<24 && Math.abs(y-c.y)<24) return true;
+    return false;
+  }
+  // how far the beam gets along one ray before a wall stops it
+  castRay(ang, maxD){
+    const st = TUNE.flashlight.rayStep;
+    for(let d=st; d<=maxD; d+=st){
+      if(this.solidAt(this.base.x+Math.cos(ang)*d, this.base.y+Math.sin(ang)*d)) return d-st;
+    }
+    return maxD;
   }
   updateDarkness(){
     if(!this.dark) return;
     const F = TUNE.flashlight, cam = this.cameras.main;
-    // screen-space position of the player, since the overlay doesn't scroll
+    // screen-space player position, since the overlay doesn't scroll
     const sx = (this.base.x - cam.worldView.x) * cam.zoom;
     const sy = (this.base.y - cam.worldView.y) * cam.zoom;
     this.dark.clear();
     this.dark.fill(0x04040a, F.ambient);
-    // a small always-lit halo, so you can see your own feet
     this.dark.erase(this.halo, sx, sy);
-    // the cone: overlapping blobs marching out along facing, widening as they go
-    const f = S.facing, ang = Math.atan2(f.y, f.x);
+
+    /* The beam is a fan of rays, each stopped at the first wall it meets, and
+       the resulting polygon is erased in one pass. Casting per-ray is what
+       keeps light out of rooms you can't see into — a plain cone would spill
+       straight through the cave walls. */
+    const base = Math.atan2(S.facing.y, S.facing.x);
     const half = Phaser.Math.DegToRad(F.coneDeg)/2;
-    const steps = 7;
-    for(let i=1;i<=steps;i++){
-      const t = i/steps, d = F.range*t*cam.zoom;
-      const spread = Math.tan(half)*d;
-      const w = Math.max(28, spread*1.5);
-      this.beam.setScale(w/64);
-      for(let s=-1;s<=1;s++){
-        this.beam.setAlpha(1 - 0.25*Math.abs(s));
-        this.dark.erase(this.beam,
-          sx + Math.cos(ang)*d - Math.sin(ang)*spread*s*0.6,
-          sy + Math.sin(ang)*d + Math.cos(ang)*spread*s*0.6);
-      }
+    const g = this.beamPoly;
+    g.clear(); g.fillStyle(0xffffff,1);
+    g.beginPath(); g.moveTo(sx,sy);
+    for(let i=0;i<=F.rays;i++){
+      const a = base - half + (2*half)*(i/F.rays);
+      const d = this.castRay(a, F.range) * cam.zoom;
+      g.lineTo(sx + Math.cos(a)*d, sy + Math.sin(a)*d);
     }
+    g.closePath(); g.fillPath();
+    this.dark.erase(g);
   }
 
   /* ---------- Level 3: crawlers ----------
