@@ -49,10 +49,11 @@ const TUNE = {
   /* Level 3: the cave. Each subsystem gets its own block, the same way the
      meteor shower does, so it can be tuned without hunting through code. */
   flashlight: {
-    range: 190,               // px the beam reaches
-    coneDeg: 100,             // beam width
+    range: 105,               // ~3 steps, about a third of the way to the
+                              // screen edge — you outrun your own light
+    coneDeg: 95,              // beam width
     ambient: 0.90,            // darkness opacity: near-black, not total
-    halo: 46,                 // small always-lit circle around the player
+    halo: 30,                 // small always-lit circle around the player
   },
   crawler: {
     hp: 3,                    // swings to kill (rocks take 2)
@@ -186,11 +187,16 @@ const L3 = {
   },
 
   triggers: [
-    {x:640,y:1820,r:90,who:'Captain Mayo',text:'Ah— that is a bad landing. Leg is done. Go on without me, rookie — find us a way through and come back for me. Keep your light moving.',
-      effect:(sc)=>{ setHint(''); }},
-    {x:640,y:1600,r:70,who:'SUIT COMPUTER',text:'ADVISORY: ambient light below instrument threshold. Helmet lamp engaged. Battery is not rated for this. Something down here is warm, and it is not you.'},
-    {x:640,y:1080,r:80,who:'Captain Mayo',text:'...Mayo? His gear is here. His tether is cut clean — not torn, cut. There is a drag mark heading north, and it is wet.',
-      effect:(sc)=>{ S.phase=1; }},
+    {x:640,y:1820,r:110,who:'Captain Mayo',text:'That is my leg finished — I am not walking anywhere. Listen: we came down with what is on our backs and nothing else. You need to find oxygen, rookie, or neither of us sees the surface again. Go. I will keep watch from right here.'},
+    {x:640,y:1600,r:70,who:'SUIT COMPUTER',text:'ADVISORY: ambient light below instrument threshold. Helmet lamp engaged, but the beam will not reach far. Something down here is warm, and it is not you.'},
+    {x:640,y:1510,r:70,who:'SUIT COMPUTER',text:'REMINDER: the six iron is still clipped to your pack. Press J to swing it. It was not issued as a weapon, but it is what you have.'},
+    {x:640,y:1080,r:80,who:'SUIT COMPUTER',text:'That is Mayo\'s kit. His tether, his tank, his sidearm — all of it, this far in. He could not walk. Something carried him past you in the dark, and it did not make a sound doing it. The drag mark heads north.',
+      effect:(sc)=>{
+        S.phase=1;
+        // he is not at the cave mouth any more, if you go back to look
+        (sc.npcSprites||[]).forEach(n=>{ if(n.shadowRef) n.shadowRef.destroy(); n.destroy(); });
+        sc.npcSprites = [];
+      }},
     {x:300,y:700,r:55,who:'GEMINI-SUIT REMAINS',text:'The name tape reads BRANNIGAN. The mission board never listed a Brannigan. The suit is older than the colony.'},
     {x:980,y:560,r:55,who:'GEMINI-SUIT REMAINS',text:'This one is curled around a sample case, still sealed. Whatever it was carrying, it thought that mattered more than running.'},
     {x:640,y:430,r:80,who:'SUIT COMPUTER',text:'WARNING: mass reading ahead exceeds anything in the colony manifest. Recommend withdrawal. There is no route that permits withdrawal.'},
@@ -312,14 +318,14 @@ const LEVELS = {
     start: {hasClub:true, hasFlag:false},
     ball: null,                      // no golf here
     lander: null,                    // underground
-    npcs: [],                        // Mayo is a prop, placed by buildTerrain
+    npcs: [[700,1832]],              // Mayo, down beside you at the cave mouth
     rocks: [],                       // all placed by buildTerrain
     meteors: false,
     dark: true,                      // switches on the flashlight/darkness pass
     goal: {mode:'trigger'},          // the beacon trigger ends it
     win: {title:'SIGNAL ACQUIRED',
           flavor:'Something is still moving back there. You do not look.'},
-    hint: ()=> S.phase===0 ? 'FIND MAYO — SEARCH THE CAVERN'
+    hint: ()=> S.phase===0 ? 'SEARCH THE CAVERN FOR OXYGEN'
              : S.phase===1 ? 'FOLLOW THE TRAIL — AND WATCH THE DARK'
              :               'GET OUT — HEAD FOR THE SIGNAL',
     triggers: L3.triggers,
@@ -646,7 +652,7 @@ class LevelScene extends Phaser.Scene {
       this.lander = this.physics.add.staticImage(L.x,L.y,L.tex).setScale(2).setDepth(L.y);
       this.lander.refreshBody();
     }
-    cfg.npcs.forEach(p=> this.addNPC(p[0],p[1]));
+    this.npcSprites = cfg.npcs.map(p=> this.addNPC(p[0],p[1]));
 
     // golf ball
     this.ball = null;
@@ -781,7 +787,8 @@ class LevelScene extends Phaser.Scene {
 
   /* ---------- helpers ---------- */
   addNPC(x,y){ const n=this.add.image(x,y,'astroN').setScale(2).setDepth(y);
-    this.add.image(x,y+16,'shadow'); return n; }
+    // keep the shadow on the sprite so a level can remove an NPC cleanly
+    n.shadowRef = this.add.image(x,y+16,'shadow'); return n; }
   hazard(key,x,y){ const h=this.hazards.create(x,y,key).setScale(TUNE.hazardScale); h.refreshBody(); h.setDepth(1); }
   spawnRock(x,y){ const r=this.rocks.create(x,y,'boulder').setScale(2); r.refreshBody(); r.hp=2; r.setDepth(y); }
   spawnTank(x,y){ const t=this.tanks.create(x,y,'tank').setScale(2); t.refreshBody(); t.setDepth(y); }
