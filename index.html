@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUNDUS MIRIS</title>
-<link rel="preload" as="image" href="MundusMirisImage.png">
-<link rel="preload" as="image" href="MundusMirisTitleImage.png" fetchpriority="low">
+<link rel="preload" as="image" href="assets/MundusMirisImage.png">
+<link rel="preload" as="image" href="assets/MundusMirisTitleImage.png" fetchpriority="low">
 <link rel="stylesheet" href="game.css">
 <style>
   /* This page carries no canvas, so #wrap needs the stage height itself. */
@@ -51,7 +51,7 @@
   <!-- Splash. Shown inline so it is opaque on the very first paint, before
        any JS runs. -->
   <div class="overlay screen" id="splashScreen" style="display:flex" aria-label="Mundus Miris">
-    <img class="screenArt" src="MundusMirisImage.png" alt="Mundus Miris">
+    <img class="screenArt" src="assets/MundusMirisImage.png" alt="Mundus Miris">
     <div class="screenBody">
       <p class="screenPrompt" id="splashPrompt" aria-live="polite">LOADING…</p>
     </div>
@@ -59,7 +59,7 @@
 
   <!-- Title + level select -->
   <div class="overlay screen" id="titleScreen" aria-label="Level select">
-    <img class="screenArt" src="MundusMirisTitleImage.png" alt="Mundus Miris">
+    <img class="screenArt" src="assets/MundusMirisTitleImage.png" alt="Mundus Miris">
     <div class="screenBody">
       <div class="menuCard">
         <h2>SELECT LEVEL</h2>
@@ -139,7 +139,7 @@ window.addEventListener('keydown', e => {
   const prompt = document.getElementById('splashPrompt');
   const ready = ()=>{ if(done) return; done=true;
     prompt.textContent='PRESS E TO CONTINUE'; prompt.classList.add('ready'); };
-  const img = new Image(); img.src='MundusMirisImage.png';
+  const img = new Image(); img.src='assets/MundusMirisImage.png';
   (img.decode ? img.decode() : Promise.reject()).then(ready).catch(()=>{
     if(img.complete) ready(); else { img.onload=ready; img.onerror=ready; }
   });

@@ -43,6 +43,11 @@
 
   #deadTitle{color:var(--hp);}
   #winTitle{color:var(--gold);}
+  /* Cause-specific death art. The card is 480px wide minus 36px padding, and the
+     images are 1254x1254 squares — a plain width:100% would be 408px tall and
+     push the card off the 620px stage, so letterbox into a fixed-height box. */
+  .deathArt{display:none; width:100%; height:190px; object-fit:contain;
+    margin-bottom:12px; border:1px solid var(--line);}
   /* the settings panel reuses the shared .overlay button styling */
   #settings button{background:var(--gold); color:#141005; border:0; font-family:inherit; font-size:12px; letter-spacing:2px; padding:8px 18px; cursor:pointer; margin:3px;}
   #settings button.ghost{background:transparent; color:var(--dim); border:1px solid var(--line);}
@@ -108,6 +113,7 @@
 
   <div class="overlay" id="deadOverlay">
     <div class="card">
+      <img id="deadArt" class="deathArt" alt="">
       <h2 id="deadTitle">FLATLINE</h2>
       <p id="deadReason">Your suit telemetry has gone dark.</p>
       <button id="btnRespawn">RESPAWN AT FLARE</button>
@@ -155,7 +161,18 @@ const S = {  // mutable game state (reset on restart)
   airborne: false, facing: {x:0,y:1},
   paused: false,             // dialogue or overlay open
   dead: false, won: false,
+  deathCause: null,          // set by damage() at the fatal blow
   startTime: 0, deaths: 0,
+};
+
+/* What each way of dying says and shows. The art is never preloaded — setting
+   .src on first death is what fetches it, and the browser caches from there. */
+const DEATHS = {
+  fall:      { reason:'A hard fall cracked your suit seals. Vitals gone.',
+               img:'assets/MundusMirisFallDeathImage.png' },
+  suffocate: { reason:'Oxygen depleted. The suit kept you moving longer than it should have.',
+               img:'assets/MundusMirisSuffocationDeathImage.png' },
+  unknown:   { reason:'Your suit telemetry has gone dark.', img:null },
 };
 
 const ui = {
@@ -168,6 +185,7 @@ const ui = {
   dlgText: document.getElementById('dlgText'),
   dead: document.getElementById('deadOverlay'),
   deadReason: document.getElementById('deadReason'),
+  deadArt: document.getElementById('deadArt'),
   win: document.getElementById('winOverlay'),
   winStats: document.getElementById('winStats'),
   settings: document.getElementById('settings'),
@@ -213,6 +231,27 @@ let scene = null;
 function restartLevel(){ if(scene) scene.scene.restart(); }
 function hideDialog(){ ui.dlg.style.display = 'none'; }
 function setHint(text){ ui.hint.textContent = text ? 'CURRENT OBJECTIVE: '+text : ''; }
+
+/* Swap in the death art for a cause, fetching it on first use.
+   Uses visibility rather than display while loading: with display:none the card
+   would be short on the first frame and grow ~200px when a 2MB PNG decodes,
+   shifting RESPAWN out from under the cursor mid-click. Reserving the box means
+   only the pixels pop in. */
+function setDeathArt(src){
+  const el = ui.deadArt;
+  if(!src){ el.style.display='none'; return; }
+  el.style.display='block';
+  if(el.getAttribute('src') === src){
+    // Same cause as last time — already fetched. Re-assigning an identical src
+    // does not reliably refire onload, which would strand it hidden forever.
+    el.style.visibility = el.complete ? 'visible' : 'hidden';
+    return;
+  }
+  el.style.visibility='hidden';
+  el.onload  = ()=>{ el.style.visibility='visible'; };
+  el.onerror = ()=>{ el.style.display='none'; };   // offline: card still works
+  el.setAttribute('src', src);
+}
 
 /* ---------------- texture factory (all pixel art in code) --------------- */
 function makeTextures(sc){
@@ -321,8 +360,9 @@ class Level1 extends Phaser.Scene {
     // reset state
     Object.assign(S,{ o2:TUNE.o2Max, hp:TUNE.hpMax, flares:TUNE.startFlares, checkpoint:null,
       hasClub:false, hasFlag:false, airborne:false, facing:{x:0,y:1}, paused:false,
-      dead:false, won:false, startTime:this.time.now, deaths:0 });
+      dead:false, won:false, deathCause:null, startTime:this.time.now, deaths:0 });
     ui.dead.style.display='none'; ui.win.style.display='none'; hideDialog();
+    setDeathArt(null);   // a restart must not flash the previous run's art
 
     makeTextures(this);
     const W=1280, H=1900;
@@ -522,10 +562,21 @@ class Level1 extends Phaser.Scene {
   }
 
   /* ---------- death / respawn / win ---------- */
-  die(reason){
+  /* Every source of damage goes through here so the killing blow records itself.
+     The early return is the point: once HP is at zero the cause is locked, so a
+     crater fall that kills you while O2 already reads zero reports the fall
+     rather than being relabelled suffocation by the next drain tick. */
+  damage(amount, cause){
+    if(S.hp<=0) return;
+    S.hp = Math.max(0, S.hp - amount);
+    if(S.hp<=0) S.deathCause = cause;
+  }
+  die(cause){
     if(S.dead||S.won) return;
     S.dead=true; S.deaths++;
-    ui.deadReason.textContent=reason;
+    const d = DEATHS[cause] || DEATHS.unknown;
+    ui.deadReason.textContent = d.reason;
+    setDeathArt(d.img);
     document.getElementById('btnRespawn').textContent = S.checkpoint ? 'RESPAWN AT FLARE' : 'RESPAWN AT LANDER';
     ui.dead.style.display='flex';
   }
@@ -533,7 +584,7 @@ class Level1 extends Phaser.Scene {
     const p=S.checkpoint||{x:600,y:1850};
     this.base.setPosition(p.x,p.y); this.base.setVelocity(0,0);
     S.hp=TUNE.hpMax; S.o2=TUNE.o2Max*(parseInt(ui.respawnO2.value,10)/100);
-    S.dead=false; ui.dead.style.display='none';
+    S.dead=false; S.deathCause=null; ui.dead.style.display='none';
   }
   winLevel(){
     if(S.won) return; S.won=true;
@@ -576,7 +627,7 @@ class Level1 extends Phaser.Scene {
         onComplete:()=>{ this.z=0; S.airborne=false;
           // landed inside a hazard? take a tumble + O2 hit, nudge out
           const hit=this.hazards.getChildren().find(h=>Phaser.Math.Distance.Between(h.x,h.y,this.base.x,this.base.y)<TUNE.hazardMissRadius);
-          if(hit){ S.hp=Math.max(0,S.hp-TUNE.hpMax*TUNE.craterFallPct); S.o2=Math.max(0,S.o2-4);
+          if(hit){ this.damage(TUNE.hpMax*TUNE.craterFallPct,'fall'); S.o2=Math.max(0,S.o2-4);
             this.cameras.main.shake(120,0.006); this.pop(this.base.x,this.base.y-24,'ROUGH LANDING',0xb3202a);
             this.base.setPosition(this.base.x,hit.y+34); }
         }});
@@ -627,8 +678,8 @@ class Level1 extends Phaser.Scene {
     // oxygen economy
     const mult=parseInt(ui.drainRate.value,10)/100;
     S.o2=Math.max(0,S.o2-TUNE.drainPerSec*mult*sec);
-    if(S.o2<=0){ S.hp=Math.max(0,S.hp-TUNE.suffocateHpPerSec*sec); }
-    if(S.hp<=0) this.die(S.o2<=0 ? 'Oxygen depleted. The suit kept you moving longer than it should have.' : 'A hard fall cracked your suit seals. Vitals gone.');
+    if(S.o2<=0){ this.damage(TUNE.suffocateHpPerSec*sec,'suffocate'); }
+    if(S.hp<=0) this.die(S.deathCause || 'unknown');
 
     this.syncVisuals(); this.updateHUD();
   }
