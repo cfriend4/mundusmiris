@@ -34,3 +34,9 @@ body{background:var(--ink); color:var(--bone); font-family:"Courier New",monospa
   padding:8px 18px; margin:3px; cursor:pointer; text-decoration:none;}
 .btnlink:hover{color:var(--bone);}
 .btnlink:focus-visible{outline:2px solid var(--o2);}
+/* the one you most likely want after finishing a level */
+.btnlink.primary{background:var(--gold); color:#141005; border-color:var(--gold);}
+.btnlink.primary:hover{color:#141005; filter:brightness(1.12);}
+
+/* the win card carries three actions; 480px would wrap them onto two rows */
+#winOverlay .card{max-width:520px;}

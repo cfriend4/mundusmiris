@@ -248,6 +248,7 @@ const LEVELS = {
       requires: ()=> S.hasFlag,
     },
     win: {title:'FLAG PLANTED', flavor:'The ground begins to tremble...'},
+    next: 'level2.html',
     /* Directions checked against the actual trigger coordinates below:
        Mayo (470,1380) is 310px north and 190px west of the lander, and
        Henry (625,830) is 860px north of it — just past the trench rows,
@@ -303,6 +304,7 @@ const LEVELS = {
     goal: {mode:'trigger'},          // no zone: Mayo's win trigger ends it
     win: {title:'STRANDED',
           flavor:'The ridge is coming apart behind you. Mayo is already moving.'},
+    next: 'level3.html',
     hint: ()=> 'RUN — GET BACK TO THE LANDER',
     triggers: [
       {x:640,y:290,r:90,who:'Commander Okwonko',text:'Meteor shower incoming, Rookie — get your ass back to the lander. NOW! Watch the sky: where the ground lights up red, something is already on its way down.'},
@@ -1354,6 +1356,13 @@ function applyChrome(cfg){
   if(wt) wt.textContent = cfg.win.title;
   const wf = document.getElementById('winFlavor');
   if(wf) wf.textContent = cfg.win.flavor;
+  /* NEXT LEVEL points at whatever the config says comes after. The last level
+     has no `next`, so the button is removed rather than left pointing nowhere. */
+  const nx = document.getElementById('btnNext');
+  if(nx){
+    if(cfg.next){ nx.href = cfg.next; nx.style.display = ''; }
+    else nx.style.display = 'none';
+  }
 }
 
 function startGame(n){
