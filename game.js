@@ -104,8 +104,12 @@ const LEVELS = {
       requires: ()=> S.hasFlag,
     },
     win: {title:'FLAG PLANTED', flavor:'The ground begins to tremble...'},
-    hint: ()=> !S.hasClub ? 'FIND CAPTAIN MAYO WEST OF THE LANDER'
-             : !S.hasFlag ? 'MAJ IDRIS HAS THE FLAG AT THE LANDER'
+    /* Directions checked against the actual trigger coordinates below:
+       Mayo (470,1380) is 310px north and 190px west of the lander, and
+       Henry (625,830) is 860px north of it — just past the trench rows,
+       just short of the boulders. */
+    hint: ()=> !S.hasClub ? 'FIND CAPTAIN MAYO — NORTH-WEST OF THE LANDER'
+             : !S.hasFlag ? 'KING HENRY HAS THE FLAG — NORTH PAST THE TRENCHES'
              :              'HEAD NORTH — PLANT THE FLAG ON THE RIDGE',
     triggers: [
       // 1 — movement
