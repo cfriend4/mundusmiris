@@ -1,0 +1,61 @@
+/* ============================================================
+   MUNDUS MIRIS — level-page chrome.
+   Loaded only by level pages, after game.css. The menu page has no
+   canvas, HUD, dialogue box or settings panel, so none of this belongs
+   in game.css (which every page loads).
+   ============================================================ */
+
+#game{width:840px; height:620px; max-width:100vw; border:2px solid var(--line); image-rendering:pixelated;}
+canvas{image-rendering:pixelated;}
+
+/* HUD */
+#hud{position:absolute; top:0; left:0; right:0; padding:10px 12px; pointer-events:none; letter-spacing:1px;}
+.barlabel{font-size:10px; color:var(--dim); text-transform:uppercase;}
+.bar{width:220px; height:12px; background:#000; border:1px solid var(--line); margin:2px 0 6px;}
+.bar>div{height:100%; transition:width .15s linear;}
+#hpfill{background:var(--hp); width:100%;}
+#o2fill{background:var(--o2); width:100%;}
+#o2fill.low{animation:blink .5s steps(2) infinite;}
+@keyframes blink{50%{opacity:.35;}}
+#meta{position:absolute; top:10px; right:12px; text-align:right; font-size:11px; color:var(--bone); pointer-events:none;}
+#meta .flare{color:var(--gold);}
+
+/* Corner menu stack: buttons + their panels stack top-to-bottom automatically */
+#menuStack{position:absolute; top:34px; right:12px; display:flex; flex-direction:column; align-items:flex-end;}
+#menuStack > *{margin-top:6px;}
+#menuStack > *:first-child{margin-top:0;}
+#gear, #controlsBtn{pointer-events:auto; background:var(--panel); color:var(--dim); border:1px solid var(--line); font-family:inherit; font-size:10px; padding:3px 8px; cursor:pointer; letter-spacing:1px;}
+#gear:hover, #controlsBtn:hover{color:var(--bone);}
+#gear:focus-visible, #controlsBtn:focus-visible{outline:2px solid var(--gold);}
+
+#hint{position:absolute; top:8px; left:0; right:0; text-align:center; font-size:11px; color:var(--dim); letter-spacing:1px; pointer-events:none; text-shadow:0 1px 0 #000;}
+#hint.flag-ready{color:var(--hp); animation:pulseRed .6s ease-in-out infinite;}
+@keyframes pulseRed{50%{opacity:.35;}}
+
+/* Dialogue */
+#dlg{position:absolute; left:50%; top:70px; transform:translateX(-50%); width:560px; max-width:92%;
+     background:var(--panel); border:1px solid var(--gold); padding:12px 14px; font-size:12px; line-height:1.6;
+     display:none; pointer-events:none;}
+#dlg .who{color:var(--gold); font-size:10px; text-transform:uppercase; letter-spacing:2px; margin-bottom:4px;}
+#dlg .press{color:var(--dim); font-size:10px; margin-top:8px; text-align:right;}
+
+#deadTitle{color:var(--hp);}
+#winTitle{color:var(--gold);}
+/* Cause-specific death art. The card is 480px wide minus 36px padding, and the
+   images are 1254x1254 squares — a plain width:100% would be 408px tall and
+   push the card off the 620px stage, so letterbox into a fixed-height box. */
+.deathArt{display:none; width:100%; height:190px; object-fit:contain;
+  margin-bottom:12px; border:1px solid var(--line);}
+/* the settings panel reuses the shared .overlay button styling */
+#settings button{background:var(--gold); color:#141005; border:0; font-family:inherit; font-size:12px; letter-spacing:2px; padding:8px 18px; cursor:pointer; margin:3px;}
+#settings button.ghost{background:transparent; color:var(--dim); border:1px solid var(--line);}
+#settings button:focus-visible, #settings input:focus-visible{outline:2px solid var(--o2);}
+
+/* Settings + Controls panels (share the same look) */
+#settings, #controlsPanel{width:250px; background:var(--panel); border:1px solid var(--line); padding:14px; font-size:11px; display:none;}
+#settings h3, #controlsPanel h3{font-size:11px; letter-spacing:2px; color:var(--gold); margin-bottom:10px;}
+#settings label{display:block; color:var(--dim); margin:8px 0 4px;}
+#settings input[type=range]{width:100%;}
+#settings .val{color:var(--bone);}
+.keys{color:var(--dim); line-height:1.8;}
+.keys b{color:var(--bone); font-weight:normal;}
