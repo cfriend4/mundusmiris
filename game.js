@@ -45,6 +45,40 @@ const TUNE = {
     maxScars: 60,               // ring-buffer cap on decorative impact marks
     shelter: [330, 940],        // no strikes while inside a side tunnel
   },
+
+  /* Level 3: the cave. Each subsystem gets its own block, the same way the
+     meteor shower does, so it can be tuned without hunting through code. */
+  flashlight: {
+    range: 190,               // px the beam reaches
+    coneDeg: 100,             // beam width
+    ambient: 0.90,            // darkness opacity: near-black, not total
+    halo: 46,                 // small always-lit circle around the player
+  },
+  crawler: {
+    hp: 3,                    // swings to kill (rocks take 2)
+    damage: 6,
+    contactCooldown: 700,     // ms between touches from the same crawler
+    speed: 55,                // slower than the player's 95 — you can outrun one
+    aggroRadius: 140,
+    loseRadius: 320,          // gives up past this, so packs don't trail forever
+  },
+  boss: {
+    hp: 20,
+    damage: 18,
+    telegraphMs: 500,         // tint-flash warning before it commits to a lunge
+    lungeSpeed: 220,
+    lungeMs: 700,
+    restMs: 1100,
+    aggroRadius: 420,
+    contactCooldown: 900,
+  },
+  companion: {
+    speedMult: 0.8,           // carrying him slows you
+    o2DrainMult: 1.25,        // and costs air
+    followLag: 34,            // px behind before he catches up
+  },
+  mercySwingCostMult: 0.8,    // leaving him: swings cost less, guilt is free
+  tanksRequiredPhase1: 3,
 };
 
 /* Honour the OS reduced-motion setting for the impact shake, as the menu
@@ -61,6 +95,8 @@ const S = {  // mutable game state (reset on restart)
   paused: false,             // dialogue or overlay open
   dead: false, won: false,
   deathCause: null,          // set by damage() at the fatal blow
+  hasCompanion: false,       // Level 3: carrying him costs speed and air
+  phase: 0,                  // Level 3 story phase, drives the objective hint
   startTime: 0, deaths: 0,
 };
 
@@ -73,7 +109,101 @@ const DEATHS = {
                img:'assets/MundusMirisSuffocationDeathImage.png' },
   meteor:    { reason:'A strike caught you in the open. The suit did not hold.',
                img:'assets/MundusMirisAsteroidDeathImage.png' },
+  crawler:   { reason:'They found you in the dark. There were more than you counted.', img:null },
+  it:        { reason:'Something in the nest was much larger than the rest.', img:null },
   unknown:   { reason:'Your suit telemetry has gone dark.', img:null },
+};
+
+/* ---------------- Level 3: the cave ------------------------------------
+   Kept in its own object so LEVELS stays readable. build() replaces the
+   shared surface layout entirely; the world is still 1280x1900, running
+   bottom (rappel point) to top (exit beacon). */
+const L3 = {
+  W_WALL:160, E_WALL:1120, TOP:150, BOT:1880,
+
+  build(sc, W, H){
+    const step = 48;
+    const wall = (x,y)=>{ const c=sc.cliffs.create(x,y,'cliff').setScale(2); c.refreshBody(); c.setDepth(2); return c; };
+    // a run of wall with an optional doorway gap punched in it
+    const row = (x0,x1,y,gap)=>{ const o=[]; for(let x=x0;x<=x1;x+=step){
+        if(gap && x>=gap[0] && x<=gap[1]) continue; o.push(wall(x,y)); } return o; };
+    const col = (y0,y1,x,gap)=>{ const o=[]; for(let y=y0;y<=y1;y+=step){
+        if(gap && y>=gap[0] && y<=gap[1]) continue; o.push(wall(x,y)); } return o; };
+
+    sc.enemies = sc.physics.add.group();
+    const dark = 0x0d0d14;
+    sc.add.tileSprite(W/2,H/2,W,H,'ground').setTint(0x4a4a58);   // colder rock
+
+    const { W_WALL:LW, E_WALL:RW, TOP:T, BOT:B } = L3;
+    // ---- outer shell
+    col(T,B,LW); col(T,B,RW); row(LW,RW,T); row(LW,RW,B);
+
+    // ---- entry chamber (bottom): where you rappel in
+    row(LW,RW,1650,[592,688]);
+
+    // ---- search cavern: three clearings, each with a tank and a pack
+    col(1250,1600,460,[1250,1298]);
+    col(1250,1600,820,[1250,1298]);
+    const clearings = [[300,1450],[640,1450],[980,1450]];
+    clearings.forEach((c,i)=>{
+      sc.spawnTank(c[0],c[1]);
+      // 2-3 crawlers per clearing, spread so they don't stack on spawn
+      const n = 2 + (i%2);
+      for(let j=0;j<n;j++) sc.spawnCrawler(c[0]-60+j*60, c[1]-90, false);
+    });
+
+    // ---- empty camp: Mayo's dropped gear, and the trail out of it
+    row(LW,RW,1150,[400,496]);
+    sc.add.image(640,1060,'gear').setScale(2).setDepth(1060);
+    // the drag-mark, heading north-west toward the trail mouth
+    [[620,1030],[590,1000],[560,975],[520,955],[470,940],[440,915]]
+      .forEach(p=> sc.add.image(p[0],p[1],'trail').setScale(2).setDepth(1));
+
+    /* ---- the trail: a switchback, so the beam only ever shows you one leg.
+       Gaps alternate sides — west, east, west — and the drag-marks above point
+       at the first of them. */
+    row(400,RW,930);      // leg A entered from the WEST gap (x 160-400)
+    row(LW,880,780);      // leg B entered from the EAST gap (x 880-1120)
+    row(400,RW,630);      // leg C entered from the WEST gap again
+    sc.spawnTank(260,860);            // west end of leg A
+    sc.spawnTank(1000,700);           // east end of leg B
+    sc.add.image(700,850,'bones').setScale(2).setDepth(850);
+    sc.add.image(500,700,'bones').setScale(2).setDepth(700);
+    [[600,880],[850,820],[800,690],[520,660],[450,550],[700,520]]
+      .forEach(p=> sc.spawnCrawler(p[0],p[1],false));
+
+    // ---- the nest: sealed arena. The gate north is a solid run of wall while
+    // IT lives, and gets destroyed the moment it goes down.
+    row(LW,RW,470,[592,688]);         // way in, from leg C
+    sc.nestGate = row(LW,RW,250);     // way out — no gap until the boss dies
+    sc.boss = sc.spawnCrawler(640,350,true);
+    [[420,300],[880,320],[500,420],[800,410]]
+      .forEach(p=> sc.add.image(p[0],p[1],'bones').setScale(2).setDepth(p[1]));
+
+    // ---- the exit beacon, above the nest
+    const bc = sc.add.image(640,195,'beacon').setScale(2).setDepth(195);
+    sc.tweens.add({targets:bc, alpha:0.25, duration:620, yoyo:true, repeat:-1});
+  },
+
+  triggers: [
+    {x:640,y:1820,r:90,who:'Captain Mayo',text:'Ah— that is a bad landing. Leg is done. Go on without me, rookie — find us a way through and come back for me. Keep your light moving.',
+      effect:(sc)=>{ setHint(''); }},
+    {x:640,y:1600,r:70,who:'SUIT COMPUTER',text:'ADVISORY: ambient light below instrument threshold. Helmet lamp engaged. Battery is not rated for this. Something down here is warm, and it is not you.'},
+    {x:640,y:1080,r:80,who:'Captain Mayo',text:'...Mayo? His gear is here. His tether is cut clean — not torn, cut. There is a drag mark heading north, and it is wet.',
+      effect:(sc)=>{ S.phase=1; }},
+    {x:300,y:700,r:55,who:'GEMINI-SUIT REMAINS',text:'The name tape reads BRANNIGAN. The mission board never listed a Brannigan. The suit is older than the colony.'},
+    {x:980,y:560,r:55,who:'GEMINI-SUIT REMAINS',text:'This one is curled around a sample case, still sealed. Whatever it was carrying, it thought that mattered more than running.'},
+    {x:640,y:430,r:80,who:'SUIT COMPUTER',text:'WARNING: mass reading ahead exceeds anything in the colony manifest. Recommend withdrawal. There is no route that permits withdrawal.'},
+    // the choice — only after IT is down
+    {x:640,y:300,r:70,who:'Captain Mayo',text:'You came back. Cannot feel my legs, rookie. You can carry me and we both go slow — or you leave me and you go fast. Your call. Make it quick.',
+      cond:()=> S.phase>=2,
+      choices:[
+        {key:'1', label:'CARRY HIM', effect:(sc)=>{ sc.spawnCompanion(); sc.pop(sc.base.x,sc.base.y-30,'CARRYING MAYO',0xc9a227); }},
+        {key:'2', label:'LEAVE HIM', effect:(sc)=>{ sc.swingCostMult=TUNE.mercySwingCostMult; sc.pop(sc.base.x,sc.base.y-30,'YOU LEFT HIM',0xb3202a); }},
+      ]},
+    {x:640,y:200,r:60,who:'SUIT COMPUTER',text:'Signal acquired. Surface relay, bearing north. It is blinking. Someone is still up there.',
+      win:true},
+  ],
 };
 
 /* ---------------- per-level configuration ------------------------------
@@ -168,6 +298,33 @@ const LEVELS = {
       {x:1150,y:350,r:45,who:'SCRATCHED STONE',text:'I tried to organize a party on the Moon, but nobody came. There was no atmosphere.'},
     ],
   },
+
+  /* ---------------- Level 3: Nyctophobia ---------------------------------
+     Underground, so none of the surface corridor applies — buildTerrain below
+     replaces the shared layout entirely. Flow runs bottom (the rappel point)
+     to top (the exit beacon): search -> empty camp -> the trail -> the nest
+     -> the choice -> out. */
+  3: {
+    id: 'level3',
+    name: 'LEVEL 3 — NYCTOPHOBIA',
+    title: 'MUNDUS MIRIS — Level 3: Nyctophobia',
+    spawn: {x:640, y:1820},
+    start: {hasClub:true, hasFlag:false},
+    ball: null,                      // no golf here
+    lander: null,                    // underground
+    npcs: [],                        // Mayo is a prop, placed by buildTerrain
+    rocks: [],                       // all placed by buildTerrain
+    meteors: false,
+    dark: true,                      // switches on the flashlight/darkness pass
+    goal: {mode:'trigger'},          // the beacon trigger ends it
+    win: {title:'SIGNAL ACQUIRED',
+          flavor:'Something is still moving back there. You do not look.'},
+    hint: ()=> S.phase===0 ? 'FIND MAYO — SEARCH THE CAVERN'
+             : S.phase===1 ? 'FOLLOW THE TRAIL — AND WATCH THE DARK'
+             :               'GET OUT — HEAD FOR THE SIGNAL',
+    triggers: L3.triggers,
+    buildTerrain: (sc,W,H)=> L3.build(sc,W,H),
+  },
 };
 
 const ui = {
@@ -178,6 +335,7 @@ const ui = {
   dlg: document.getElementById('dlg'),
   dlgWho: document.getElementById('dlgWho'),
   dlgText: document.getElementById('dlgText'),
+  dlgPress: document.getElementById('dlgPress'),
   dead: document.getElementById('deadOverlay'),
   deadReason: document.getElementById('deadReason'),
   deadArt: document.getElementById('deadArt'),
@@ -359,6 +517,59 @@ function makeTextures(sc){
   T('swing',22,22,g=>{ g.lineStyle(3,0xf2efe4,0.9); g.beginPath();
     g.arc(11,11,9,-0.8,0.8); g.strokePath(); });
 
+  /* ---- Level 3: the cave ----
+     Crawler: hunched, long-armed, ribbed torso, face tendrils, red eyes.
+     Drawn 22x30 and placed at scale 2, so it reads a head taller than the
+     28x36 astronaut — it should feel wrong to stand next to. */
+  const crawlerBody = (g, skin, dark, eye) => {
+    g.fillStyle(dark);
+    // arms: long, dropping past the knees, hooking outward into claws
+    g.fillRect(2,10,3,13);  g.fillRect(17,10,3,13);
+    g.fillRect(1,21,3,6);   g.fillRect(18,21,3,6);
+    g.fillRect(0,26,2,2);   g.fillRect(20,26,2,2);   // claw tips
+    g.fillRect(3,26,2,2);   g.fillRect(17,26,2,2);
+    // shoulders, hunched up around the head
+    g.fillRect(4,8,5,4);    g.fillRect(13,8,5,4);
+    g.fillStyle(skin);
+    g.fillRect(7,9,8,12);                            // torso
+    g.fillRect(6,20,4,8);   g.fillRect(12,20,4,8);   // haunches
+    g.fillStyle(dark);
+    g.fillRect(6,27,5,3);   g.fillRect(11,27,5,3);   // splayed feet
+    // ribcage — thin dark bands, the detail that sells the silhouette
+    for(let i=0;i<4;i++) g.fillRect(8,11+i*2,6,1);
+    // head, low and forward
+    g.fillStyle(skin); g.fillRect(7,2,8,7);
+    g.fillStyle(dark);
+    g.fillRect(6,1,10,2);                            // brow ridge
+    g.fillRect(7,8,2,3);  g.fillRect(10,8,2,3);  g.fillRect(13,8,2,3);  // tendrils
+    g.fillStyle(eye);
+    g.fillRect(8,4,2,2);  g.fillRect(12,4,2,2);      // eyes
+  };
+  T('crawler',22,30,g=>crawlerBody(g,0x2a2a30,0x141418,0xd4302a));
+  // the boss is the same shape read larger and colder, with brighter eyes
+  T('crawlerBoss',22,30,g=>crawlerBody(g,0x38323c,0x1a1620,0xff3b2f));
+
+  // soft-edged beam mask: a radial falloff the flashlight punches into the dark
+  T('lightBlob',128,128,g=>{
+    for(let r=64;r>0;r-=2){
+      g.fillStyle(0xffffff, 0.020*(1-r/64)+0.004);
+      g.fillCircle(64,64,r);
+    }
+  });
+  // dropped gear at the empty camp, and the wounded companion
+  T('gear',14,10,g=>{ g.fillStyle(0x3a7bd8); g.fillRect(1,3,7,6);
+    g.fillStyle(0x9a978c); g.fillRect(8,4,5,4); g.fillStyle(0x2c2c36); g.fillRect(0,8,14,2); });
+  // Gemini-suit skeleton: lore dressing along the trail and around the nest
+  T('bones',16,12,g=>{ g.fillStyle(0xb8b3a4); g.fillRect(5,0,6,5);
+    g.fillStyle(0x8a8798); g.fillRect(6,1,4,3);
+    g.fillStyle(0xb8b3a4); g.fillRect(3,6,10,2); g.fillRect(2,9,5,2); g.fillRect(9,9,5,2); });
+  // blinking exit waypoint
+  T('beacon',10,16,g=>{ g.fillStyle(0x2c2c36); g.fillRect(3,6,4,10);
+    g.fillStyle(0x6ba0e8); g.fillRect(2,0,6,6); g.fillStyle(0xd8f0ff); g.fillRect(3,1,4,3); });
+  // red trail marker — the drag-mark leading out of the empty camp
+  T('trail',10,6,g=>{ g.fillStyle(0x6e1a1a,0.85); g.fillEllipse(5,3,9,5);
+    g.fillStyle(0x8f2222,0.7); g.fillEllipse(5,3,5,3); });
+
   // meteor telegraph. Its own texture rather than a tinted flareGlow, which is
   // the checkpoint colour — teaching that a lethal ring is a safe one would be
   // actively harmful. Drawn at exactly TUNE.meteor.radius, and never resized,
@@ -397,7 +608,7 @@ class LevelScene extends Phaser.Scene {
     const cfg = this.cfg;
     // reset state
     Object.assign(S,{ o2:TUNE.o2Max, hp:TUNE.hpMax, flares:TUNE.startFlares, checkpoint:null,
-      hasClub:cfg.start.hasClub, hasFlag:cfg.start.hasFlag, airborne:false, facing:{x:0,y:1}, paused:false,
+      hasClub:cfg.start.hasClub, hasFlag:cfg.start.hasFlag, hasCompanion:false, phase:0, airborne:false, facing:{x:0,y:1}, paused:false,
       dead:false, won:false, deathCause:null, startTime:this.time.now, deaths:0 });
     ui.dead.style.display='none'; ui.win.style.display='none'; hideDialog();
     setDeathArt(null);   // a restart must not flash the previous run's art
@@ -416,6 +627,9 @@ class LevelScene extends Phaser.Scene {
     this.rocks = this.physics.add.staticGroup();    // destructible boulders
     this.tanks = this.physics.add.staticGroup();
     this.flarePickups = this.physics.add.staticGroup();
+    // dynamic, unlike the rest — Level 3's buildTerrain creates and fills it,
+    // and it stays null on the surface levels
+    this.enemies = null;
 
     // ---- player (invisible physics base + visual sprite + shadow)
     this.base = this.physics.add.image(cfg.spawn.x,cfg.spawn.y,'shadow').setVisible(false);
@@ -424,14 +638,15 @@ class LevelScene extends Phaser.Scene {
     this.player = this.add.image(0,0,'astro').setScale(2);
     this.z = 0;
 
-    // ---- lander (solid) + NPCs
-    const L = cfg.lander;
-    this.lander = this.physics.add.staticImage(L.x,L.y,L.tex).setScale(2).setDepth(L.y);
-    this.lander.refreshBody();
+    // ---- lander (solid) + NPCs. Level 3 is underground and has no lander,
+    // so this is guarded the same way the golf ball below already is.
+    this.lander = null;
+    if(cfg.lander){
+      const L = cfg.lander;
+      this.lander = this.physics.add.staticImage(L.x,L.y,L.tex).setScale(2).setDepth(L.y);
+      this.lander.refreshBody();
+    }
     cfg.npcs.forEach(p=> this.addNPC(p[0],p[1]));
-
-    // tanks placed right after the oxygen tutorial line, before the craters
-    this.spawnTank(480,1550); this.spawnTank(790,1600);
 
     // golf ball
     this.ball = null;
@@ -442,8 +657,17 @@ class LevelScene extends Phaser.Scene {
       this.physics.add.collider(this.ball,this.rocks);
     }
 
-    // ---- course layout (bottom = start, top = summit)
+    /* ---- course layout. Levels 1 and 2 share the surface corridor and set no
+       buildTerrain, so they fall through to the block below exactly as before.
+       Level 3 is underground and supplies its own, keeping its whole layout in
+       one place rather than littering this block with per-level branches. */
+    if(cfg.buildTerrain){
+      cfg.buildTerrain(this, W, H);
+    } else {
     this.buildWalls(W,H);
+
+    // tanks placed right after the oxygen tutorial line, before the craters
+    this.spawnTank(480,1550); this.spawnTank(790,1600);
 
     // jump-tutorial craters
     this.hazard('crater',490,1620); this.hazard('crater',410,1650); this.hazard('crater',572,1650); this.hazard('crater',700,1650); this.hazard('crater',790,1665); this.hazard('crater',880,1645);
@@ -490,6 +714,7 @@ class LevelScene extends Phaser.Scene {
     this.add.image(150,650,'plaque').setScale(2).setDepth(650);
     this.spawnTank(1115,350);
     this.add.image(1150,350,'plaque').setScale(2).setDepth(350);
+    }  // end shared surface layout
 
     // goal zone — the summit on Level 1; Level 2 ends via a trigger instead
     this.goalZone = null;
@@ -501,7 +726,7 @@ class LevelScene extends Phaser.Scene {
 
     // ---- colliders
     this.physics.add.collider(this.base,this.cliffs);
-    this.physics.add.collider(this.base,this.lander);
+    if(this.lander) this.physics.add.collider(this.base,this.lander);
     this.physics.add.collider(this.base,this.rocks);
     this.physics.add.collider(this.base,this.hazards,null,()=> this.z===0);
     this.physics.add.overlap(this.base,this.tanks,(b,t)=>{ if(S.o2<TUNE.o2Max-1){ S.o2=Math.min(TUNE.o2Max,S.o2+TUNE.o2Max*TUNE.tankRefillPct); this.pop(t.x,t.y,'+O2',0x6ba0e8); t.destroy(); }});
@@ -512,7 +737,10 @@ class LevelScene extends Phaser.Scene {
     this.cameras.main.setZoom(1.4);
 
     // ---- input
-    this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,J,F,E');
+    // K1/K2 back the branching-choice dialogue (ONE/TWO are the digit-row keys)
+    this.keys = this.input.keyboard.addKeys(
+      {W:'W',A:'A',S:'S',D:'D',UP:'UP',DOWN:'DOWN',LEFT:'LEFT',RIGHT:'RIGHT',
+       SPACE:'SPACE',J:'J',F:'F',E:'E',K1:'ONE',K2:'TWO'});
     this.lastSwing = 0; this.dlgGuard = 0;
 
     // ---- dialogue triggers (drain pauses while open)
@@ -528,6 +756,24 @@ class LevelScene extends Phaser.Scene {
     this.scars = [];
     this.meteorTimer = TUNE.meteor.grace;
     this.lastMeteorHit = 0;
+
+    // ---- Level 3: darkness, enemies, companion. Same rebuild-in-create rule
+    // as the meteors: a restart must not leave stale sprite references behind.
+    this.dark = null; this.companion = null; this.nestGate = [];
+    this.swingCostMult = 1;
+    if(cfg.dark) this.buildDarkness();
+    if(this.enemies){
+      this.physics.add.collider(this.base,this.enemies);
+      this.physics.add.collider(this.enemies,this.cliffs);
+      this.physics.add.overlap(this.base,this.enemies,(b,e)=>{
+        const C = e.isBoss ? TUNE.boss : TUNE.crawler;
+        if(this.time.now - e.lastTouch < C.contactCooldown) return;
+        e.lastTouch = this.time.now;
+        this.damage(C.damage, e.isBoss?'it':'crawler');
+        this.cameras.main.shake(90,0.005);
+        this.pop(this.base.x,this.base.y-24,'-'+C.damage,0xb3202a);
+      });
+    }
 
     this.updateHUD();
     setHint('');
@@ -680,6 +926,111 @@ class LevelScene extends Phaser.Scene {
     }
   }
 
+  /* ---------- Level 3: darkness + flashlight ----------
+     A dark rectangle locked to the camera, with the beam punched through it in
+     ERASE blend mode. Chosen over Phaser's Light2D pipeline because that would
+     mean opting every shared texture helper into a pipeline — reaching into
+     Levels 1 and 2's rendering for no benefit to them. */
+  buildDarkness(){
+    const F = TUNE.flashlight;
+    this.dark = this.add.renderTexture(0,0,840,620)
+      .setOrigin(0,0).setScrollFactor(0).setDepth(9000);
+    this.beam = this.make.image({key:'lightBlob', add:false}).setOrigin(0.5,0.5);
+    this.halo = this.make.image({key:'lightBlob', add:false}).setOrigin(0.5,0.5)
+      .setScale(F.halo/64);
+  }
+  updateDarkness(){
+    if(!this.dark) return;
+    const F = TUNE.flashlight, cam = this.cameras.main;
+    // screen-space position of the player, since the overlay doesn't scroll
+    const sx = (this.base.x - cam.worldView.x) * cam.zoom;
+    const sy = (this.base.y - cam.worldView.y) * cam.zoom;
+    this.dark.clear();
+    this.dark.fill(0x04040a, F.ambient);
+    // a small always-lit halo, so you can see your own feet
+    this.dark.erase(this.halo, sx, sy);
+    // the cone: overlapping blobs marching out along facing, widening as they go
+    const f = S.facing, ang = Math.atan2(f.y, f.x);
+    const half = Phaser.Math.DegToRad(F.coneDeg)/2;
+    const steps = 7;
+    for(let i=1;i<=steps;i++){
+      const t = i/steps, d = F.range*t*cam.zoom;
+      const spread = Math.tan(half)*d;
+      const w = Math.max(28, spread*1.5);
+      this.beam.setScale(w/64);
+      for(let s=-1;s<=1;s++){
+        this.beam.setAlpha(1 - 0.25*Math.abs(s));
+        this.dark.erase(this.beam,
+          sx + Math.cos(ang)*d - Math.sin(ang)*spread*s*0.6,
+          sy + Math.sin(ang)*d + Math.cos(ang)*spread*s*0.6);
+      }
+    }
+  }
+
+  /* ---------- Level 3: crawlers ----------
+     State lives on the sprite, the way spawnRock already hangs `hp` on rocks.
+     Driven from update() like the meteors, so it inherits the dead/won/paused
+     gates for free. */
+  spawnCrawler(x,y,boss){
+    const C = boss ? TUNE.boss : TUNE.crawler;
+    const e = this.enemies.create(x,y, boss?'crawlerBoss':'crawler');
+    e.setScale(boss?3.4:2).setDepth(y).setCollideWorldBounds(true);
+    e.body.setSize(14,18);
+    e.hp = C.hp; e.isBoss = !!boss; e.lastTouch = 0;
+    e.state = 'idle'; e.stateAt = 0;
+    e.home = {x,y};
+    return e;
+  }
+  updateCrawlers(time, sec){
+    if(!this.enemies) return;
+    const px = this.base.x, py = this.base.y;
+    this.enemies.getChildren().forEach(e=>{
+      const C = e.isBoss ? TUNE.boss : TUNE.crawler;
+      const d = Phaser.Math.Distance.Between(e.x,e.y,px,py);
+      e.setDepth(e.y);
+
+      if(e.isBoss){
+        // wind up -> lunge -> rest, so the player gets a fair read on it
+        if(e.state==='idle' && d < C.aggroRadius){ e.state='wind'; e.stateAt=time; }
+        else if(e.state==='wind'){
+          e.setTint(time%160<80 ? 0xff6a5a : 0xffffff);
+          if(time-e.stateAt > C.telegraphMs){
+            e.state='lunge'; e.stateAt=time; e.clearTint();
+            this.physics.moveTo(e, px, py, C.lungeSpeed);
+          }
+        }
+        else if(e.state==='lunge' && time-e.stateAt > C.lungeMs){
+          e.state='rest'; e.stateAt=time; e.setVelocity(0,0);
+        }
+        else if(e.state==='rest' && time-e.stateAt > C.restMs){ e.state='idle'; }
+        return;
+      }
+
+      if(e.state==='idle'){
+        e.setVelocity(0,0);
+        if(d < C.aggroRadius) e.state='chase';
+      } else {
+        if(d > C.loseRadius){ e.state='idle'; e.setVelocity(0,0); return; }
+        this.physics.moveTo(e, px, py, C.speed);
+      }
+    });
+  }
+  hurtEnemy(e, n){
+    e.hp -= n;
+    if(e.hp > 0){ e.setTint(0x9a4a4a); this.time.delayedCall(120,()=>e.active&&e.clearTint()); return; }
+    this.pop(e.x,e.y, e.isBoss?'IT FALLS':'KILLED', 0xd8d3c4);
+    if(e.isBoss) this.onBossDown();
+    e.destroy();
+  }
+  onBossDown(){
+    // the nest's exit is walled while it lives — drop those tiles now
+    (this.nestGate||[]).forEach(w=>w.destroy());
+    this.nestGate = [];
+    S.phase = 2;                 // unlocks Mayo's Carry/Leave trigger
+    this.cameras.main.shake(500,0.006);
+    setHint('THE WAY OUT IS OPEN');
+  }
+
   pop(x,y,txt,color){
     const t=this.add.text(x,y,txt,{fontFamily:'monospace',fontSize:'12px',color:'#'+color.toString(16).padStart(6,'0')}).setOrigin(0.5).setDepth(9999);
     this.tweens.add({targets:t,y:y-24,alpha:0,duration:900,onComplete:()=>t.destroy()});
@@ -691,14 +1042,45 @@ class LevelScene extends Phaser.Scene {
     ui.dlgWho.textContent=t.who; ui.dlgText.textContent=t.text; ui.dlg.style.display='block';
     this.pendingGive=t.give||null;
     this.pendingWin=!!t.win;
+    this.pendingEffect=t.effect||null;   // arbitrary story beat on dismiss
+    /* A trigger carrying `choices` swaps the "E — CONTINUE" prompt for numbered
+       options and waits on 1/2 instead of E. Everything else about the box —
+       the pause, the speaker, the drain freeze — is reused untouched. */
+    this.pendingChoices = t.choices || null;
+    ui.dlgPress.textContent = this.pendingChoices
+      ? this.pendingChoices.map(c=>c.key+' — '+c.label).join('    ')
+      : 'E — CONTINUE';
   }
-  dismissDialog(){
+  dismissDialog(choice){
+    // with choices open, only a valid choice closes the box
+    if(this.pendingChoices && !choice) return;
     ui.dlg.style.display='none'; S.paused=false;
+    ui.dlgPress.textContent='E — CONTINUE';
     if(this.pendingGive==='club'){ S.hasClub=true; this.pop(this.base.x,this.base.y-30,'CLUB GET',0xc9a227); }
     if(this.pendingGive==='flag'){ S.hasFlag=true; this.pop(this.base.x,this.base.y-30,'FLAG GET',0xb3202a); }
     this.pendingGive=null;
+    if(this.pendingEffect){ const f=this.pendingEffect; this.pendingEffect=null; f(this); }
+    if(choice && choice.effect) choice.effect(this);
+    this.pendingChoices=null;
     // a trigger flagged win:true ends the level once its line is dismissed
     if(this.pendingWin){ this.pendingWin=false; this.winLevel(); }
+  }
+
+  /* ---------- Level 3: the companion, if you carried him ---------- */
+  spawnCompanion(){
+    this.companion = this.add.image(this.base.x, this.base.y+20,'astroN').setScale(2);
+    S.hasCompanion = true;
+  }
+  updateCompanion(sec){
+    if(!this.companion) return;
+    const lag = TUNE.companion.followLag;
+    const dx = this.base.x - this.companion.x, dy = this.base.y - this.companion.y;
+    const d = Math.hypot(dx,dy);
+    if(d > lag){
+      const k = Math.min(1, (d-lag)/d * sec*6);
+      this.companion.x += dx*k; this.companion.y += dy*k;
+    }
+    this.companion.setDepth(this.companion.y);
   }
 
   /* ---------- death / respawn / win ---------- */
@@ -748,7 +1130,14 @@ class LevelScene extends Phaser.Scene {
     // dialogue handling
     if(S.paused){
       this.base.setVelocity(0,0);
-      if(Phaser.Input.Keyboard.JustDown(k.E) && time>this.dlgGuard) this.dismissDialog();
+      if(time>this.dlgGuard){
+        if(this.pendingChoices){
+          // 1/2 pick a branch; E is deliberately inert so you can't skip past it
+          for(const c of this.pendingChoices){
+            if(Phaser.Input.Keyboard.JustDown(this.keys['K'+c.key])){ this.dismissDialog(c); break; }
+          }
+        } else if(Phaser.Input.Keyboard.JustDown(k.E)) this.dismissDialog();
+      }
       this.syncVisuals(); this.updateHUD(); return;
     }
     for(const t of this.triggers){
@@ -760,8 +1149,10 @@ class LevelScene extends Phaser.Scene {
     let vx=0,vy=0;
     if(k.A.isDown||k.LEFT.isDown)vx=-1; else if(k.D.isDown||k.RIGHT.isDown)vx=1;
     if(k.W.isDown||k.UP.isDown)vy=-1; else if(k.S.isDown||k.DOWN.isDown)vy=1;
+    // carrying the companion slows you down
+    const spd = TUNE.moveSpeed * (S.hasCompanion ? TUNE.companion.speedMult : 1);
     if(vx||vy){ const n=Math.hypot(vx,vy); S.facing={x:vx/n,y:vy/n};
-      this.base.setVelocity(vx/n*TUNE.moveSpeed, vy/n*TUNE.moveSpeed);
+      this.base.setVelocity(vx/n*spd, vy/n*spd);
     } else this.base.setVelocity(0,0);
 
     // jump
@@ -780,7 +1171,7 @@ class LevelScene extends Phaser.Scene {
 
     // swing
     if(Phaser.Input.Keyboard.JustDown(k.J) && S.hasClub && !S.airborne && time-this.lastSwing>TUNE.swingCooldown){
-      this.lastSwing=time; S.o2=Math.max(0,S.o2-TUNE.swingCost);
+      this.lastSwing=time; S.o2=Math.max(0,S.o2-TUNE.swingCost*this.swingCostMult);
       const sx=this.base.x+S.facing.x*18, sy=this.base.y-8+S.facing.y*18;
       const arc=this.add.image(sx,sy,'swing').setScale(2).setDepth(9998)
         .setRotation(Math.atan2(S.facing.y,S.facing.x));
@@ -792,8 +1183,13 @@ class LevelScene extends Phaser.Scene {
           if(r.hp<=0){ this.pop(r.x,r.y,'CRACK',0xd8d3c4); r.destroy(); }
           else r.setTint(0x9a9aa8);
         }});
-      // hit ball
-      if(Phaser.Math.Distance.Between(this.ball.x,this.ball.y,sx,sy)<TUNE.swingRange){
+      // hit crawlers — the club is the only weapon, so it has to work on them
+      if(this.enemies) this.enemies.getChildren().slice().forEach(e=>{
+        if(Phaser.Math.Distance.Between(e.x,e.y,sx,sy)<TUNE.swingRange+8){
+          this.cameras.main.shake(70,0.004); this.hurtEnemy(e,1);
+        }});
+      // hit ball — guarded: Level 3 has no ball
+      if(this.ball && Phaser.Math.Distance.Between(this.ball.x,this.ball.y,sx,sy)<TUNE.swingRange){
         this.ball.setVelocity(S.facing.x*260,S.facing.y*260); this.pop(this.ball.x,this.ball.y,'FORE!',0xc9a227);
       }
     }
@@ -811,6 +1207,8 @@ class LevelScene extends Phaser.Scene {
     // they stop with everything else, and before the oxygen block below, so a
     // meteor kill is what gets reported rather than simultaneous asphyxiation
     this.updateMeteors(time, sec);
+    this.updateCrawlers(time, sec);
+    this.updateCompanion(sec);
 
     // goal zone (Level 1 plants the flag here; Level 2 has no zone and wins
     // from Mayo's trigger at the lander instead)
@@ -827,12 +1225,13 @@ class LevelScene extends Phaser.Scene {
     }
 
     // oxygen economy
-    const mult=parseInt(ui.drainRate.value,10)/100;
+    const mult=(parseInt(ui.drainRate.value,10)/100)
+      * (S.hasCompanion ? TUNE.companion.o2DrainMult : 1);
     S.o2=Math.max(0,S.o2-TUNE.drainPerSec*mult*sec);
     if(S.o2<=0){ this.damage(TUNE.suffocateHpPerSec*sec,'suffocate'); }
     if(S.hp<=0) this.die(S.deathCause || 'unknown');
 
-    this.syncVisuals(); this.updateHUD();
+    this.syncVisuals(); this.updateHUD(); this.updateDarkness();
   }
 
   syncVisuals(){
