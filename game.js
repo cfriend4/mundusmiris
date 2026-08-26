@@ -88,6 +88,7 @@ const LEVELS = {
     spawn: {x:600, y:1850},
     start: {hasClub:false, hasFlag:false},
     ball: {x:470, y:1410},
+    lander: {tex:'lander', x:660, y:1690},
     npcs: [[620,1780],[470,1380],[625,830]],
     // the two destructible gates; Level 2 omits these (already smashed)
     rocks: [
@@ -117,7 +118,6 @@ const LEVELS = {
       // 4 — flag, positioned right before the rock chokepoint
       {x:625,y:830,r:60,who:'King Henry',text:'Here — the flag. Plant it at the marker on the ridge north of here. Those boulders dead ahead are blocking the path — your club should crack them open. Watch for fissures higher up. Drop a flare with F if you want a checkpoint. Make us proud.',
         cond:()=>S.hasClub, give:'flag'},
-      {x:640,y:650,r:80,who:'SUIT COMPUTER',text:'NOTICE: seismic sensors are picking up faint tremors. Probably settling dust. Probably.', cond:()=>S.hasFlag},
       // secret side-tunnel lore
       {x:150,y:650,r:45,who:'WEATHERED PLACARD',text:'The universe is under no obligation to make sense to you. — Neil deGrasse Tyson'},
       {x:1150,y:350,r:45,who:'SCRATCHED STONE',text:'I tried to organize a party on the Moon, but nobody came. There was no atmosphere.'},
@@ -131,7 +131,11 @@ const LEVELS = {
     spawn: {x:640, y:275},           // the summit — where Level 1 ended
     start: {hasClub:true, hasFlag:false},
     ball: {x:470, y:1410},
-    npcs: [],                        // Mayo is a trigger at the lander instead
+    /* The ascent stage has gone. y=1714 rather than 1690 so the shorter
+       texture's landing pads sit on exactly the same ground line as Level 1's
+       (both bottom out at y=1744). */
+    lander: {tex:'landerBase', x:660, y:1714},
+    npcs: [[570,1770]],              // Mayo, waiting by what's left of it
     /* Level 1's two gates were smashed on the way up, so they are absent.
        In their place, meteor rubble in new spots. Each band covers about
        two-thirds of the corridor and alternates sides, so the descent
@@ -148,12 +152,12 @@ const LEVELS = {
     ],
     meteors: true,
     goal: {mode:'trigger'},          // no zone: Mayo's win trigger ends it
-    win: {title:'DUST OFF',
-          flavor:'The hatch seals. Behind you, the ridge comes apart.'},
+    win: {title:'STRANDED',
+          flavor:'The ridge is coming apart behind you. Mayo is already moving.'},
     hint: ()=> 'RUN — GET BACK TO THE LANDER',
     triggers: [
       {x:640,y:290,r:90,who:'Commander Okwonko',text:'Meteor shower incoming, Rookie — get your ass back to the lander. NOW! Watch the sky: where the ground lights up red, something is already on its way down.'},
-      {x:585,y:1760,r:70,who:'Captain Mayo',text:'In! Get in! Hatch is cycling — hell of a round, rookie. Remind me never to let you pick the course again.',
+      {x:570,y:1770,r:75,who:'Captain Mayo',text:'Lander is gone — ascent stage burned for orbit without us. We need to get off this surface or we are dead. I saw a cave in the ridge on the way down. Follow me!',
         win:true},
       // the side tunnels are still there, and still worth the detour
       {x:150,y:650,r:45,who:'WEATHERED PLACARD',text:'The universe is under no obligation to make sense to you. — Neil deGrasse Tyson'},
@@ -296,6 +300,20 @@ function makeTextures(sc){
     g.fillRect(0,50,12,3); g.fillRect(52,50,12,3);        // pads
     g.fillStyle(0x9aa0aa); g.fillRect(28,0,8,5);          // antenna dish
   });
+  /* Level 2's lander after the ascent stage has burned for orbit, Apollo-style:
+     descent stage and legs only, with a scorched separation plane on top.
+     Its own 64x30 texture rather than the full one with the top cropped, so
+     the static body shrinks with the art instead of keeping 48px of empty
+     space above it that the player would still collide with. Every rect below
+     is the original shifted up by 24 (the old descent-stage line). */
+  T('landerBase',64,30,g=>{
+    g.fillStyle(0xc9a227); g.fillRect(10,0,44,16);        // descent gold foil
+    g.fillStyle(0xa8861f); for(let i=0;i<5;i++) g.fillRect(12+i*9,2,6,12);
+    g.fillStyle(0x777788); g.fillRect(4,14,4,14); g.fillRect(56,14,4,14);  // legs
+    g.fillRect(0,26,12,3); g.fillRect(52,26,12,3);        // pads
+    g.fillStyle(0x2a2a33); g.fillRect(14,0,36,3);         // scorched mount ring
+    g.fillStyle(0x1a1a20); g.fillRect(22,0,18,2);
+  });
 
   // rocks
   T('boulder',20,16,g=>{ g.fillStyle(0x3a3a46); g.fillEllipse(10,9,19,13);
@@ -403,7 +421,8 @@ class LevelScene extends Phaser.Scene {
     this.z = 0;
 
     // ---- lander (solid) + NPCs
-    this.lander = this.physics.add.staticImage(660,1690,'lander').setScale(2).setDepth(1690);
+    const L = cfg.lander;
+    this.lander = this.physics.add.staticImage(L.x,L.y,L.tex).setScale(2).setDepth(L.y);
     this.lander.refreshBody();
     cfg.npcs.forEach(p=> this.addNPC(p[0],p[1]));
 
