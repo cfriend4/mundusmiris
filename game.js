@@ -66,7 +66,7 @@ const TUNE = {
     loseRadius: 320,          // gives up past this, so packs don't trail forever
   },
   boss: {
-    hp: 20,
+    hp: 14,                   // 20 made the fight cost more air than exists
     damage: 18,
     telegraphMs: 500,         // tint-flash warning before it commits to a lunge
     lungeSpeed: 220,
@@ -165,23 +165,24 @@ const L3 = {
     /* ---- the trail: a switchback, so the beam only ever shows you one leg.
        Gaps alternate sides — west, east, west — and the drag-marks above point
        at the first of them. */
-    row(400,RW,930);      // leg A entered from the WEST gap (x 160-400)
-    row(LW,880,780);      // leg B entered from the EAST gap (x 880-1120)
-    row(400,RW,630);      // leg C entered from the WEST gap again
-    sc.spawnTank(260,860);            // west end of leg A
-    sc.spawnTank(1000,700);           // east end of leg B
-    sc.add.image(700,850,'bones').setScale(2).setDepth(850);
-    sc.add.image(500,700,'bones').setScale(2).setDepth(700);
-    [[600,880],[850,820],[800,690],[520,660],[450,550],[700,520]]
+    row(400,RW,1000);     // leg A entered from the WEST gap (x 160-400)
+    row(LW,880,860);      // leg B entered from the EAST gap (x 880-1120)
+    row(400,RW,720);      // leg C entered from the WEST gap again
+    sc.spawnTank(260,930);            // west end of leg A
+    sc.spawnTank(1000,790);           // east end of leg B
+    [[600,950],[850,900],[800,820],[520,780],[450,670],[700,650]]
       .forEach(p=> sc.spawnCrawler(p[0],p[1],false));
 
-    // ---- the nest: sealed arena. The gate north is a solid run of wall while
-    // IT lives, and gets destroyed the moment it goes down.
-    row(LW,RW,470,[592,688]);         // way in, from leg C
+    /* ---- the nest: a wide open chamber, y 250-600 across the full width.
+       Deliberately roomy — you need somewhere to break away to and circle back.
+       Stocked with air, because the fight costs more oxygen than a full bar if
+       you play it carefully; the tanks are what make it a fight rather than a
+       stopwatch. The gate north is solid wall until IT goes down. */
+    row(LW,RW,600,[592,688]);         // way in, from leg C
     sc.nestGate = row(LW,RW,250);     // way out — no gap until the boss dies
-    sc.boss = sc.spawnCrawler(640,350,true);
-    [[420,300],[880,320],[500,420],[800,410]]
-      .forEach(p=> sc.add.image(p[0],p[1],'bones').setScale(2).setDepth(p[1]));
+    [[280,330],[1000,330],[280,530],[1000,530],[700,545]]
+      .forEach(p=> sc.spawnTank(p[0],p[1]));
+    sc.boss = sc.spawnCrawler(640,400,true);
 
     // ---- the exit beacon, above the nest
     const bc = sc.add.image(640,195,'beacon').setScale(2).setDepth(195);
@@ -189,8 +190,9 @@ const L3 = {
   },
 
   triggers: [
-    {x:640,y:1820,r:110,who:'Captain Mayo',text:'That is my leg finished — I am not walking anywhere. Listen: we came down with what is on our backs and nothing else. You need to find oxygen, rookie, or neither of us sees the surface again. Go. I will keep watch from right here.'},
-    {x:640,y:1600,r:70,who:'SUIT COMPUTER',text:'ADVISORY: ambient light below instrument threshold. Helmet lamp engaged, but the beam will not reach far. Something down here is warm, and it is not you.'},
+    {x:640,y:1820,r:120,who:'Captain Mayo',text:'Stay on me, rookie — it is pitch black in here and the walls are close. Keep my lamp in sight and do not wander. It is a long way back to anywhere.'},
+    {x:640,y:1740,r:80,who:'SUIT COMPUTER',text:'ADVISORY: contact lost with Captain Mayo. He was two paces ahead of you. Ambient light is below instrument threshold — your lamp is on, but it will not reach far. Find him.'},
+    {x:640,y:1600,r:70,who:'SUIT COMPUTER',text:'Your air is finite and there is no resupply down here. Every blue cylinder you pass is one you may need on the way out. Something in this cave is warm, and it is not you.'},
     {x:640,y:1510,r:70,who:'SUIT COMPUTER',text:'REMINDER: the six iron is still clipped to your pack. Press J to swing it. It was not issued as a weapon, but it is what you have.'},
     {x:640,y:1080,r:80,who:'SUIT COMPUTER',text:'That is Mayo\'s kit. His tether, his tank, his sidearm — all of it, this far in. He could not walk. Something carried him past you in the dark, and it did not make a sound doing it. The drag mark heads north.',
       effect:(sc)=>{
@@ -199,9 +201,7 @@ const L3 = {
         (sc.npcSprites||[]).forEach(n=>{ if(n.shadowRef) n.shadowRef.destroy(); n.destroy(); });
         sc.npcSprites = [];
       }},
-    {x:300,y:700,r:55,who:'GEMINI-SUIT REMAINS',text:'The name tape reads BRANNIGAN. The mission board never listed a Brannigan. The suit is older than the colony.'},
-    {x:980,y:560,r:55,who:'GEMINI-SUIT REMAINS',text:'This one is curled around a sample case, still sealed. Whatever it was carrying, it thought that mattered more than running.'},
-    {x:640,y:430,r:80,who:'SUIT COMPUTER',text:'WARNING: mass reading ahead exceeds anything in the colony manifest. Recommend withdrawal. There is no route that permits withdrawal.'},
+    {x:640,y:660,r:80,who:'SUIT COMPUTER',text:'WARNING: mass reading in the chamber ahead. It is larger than anything that should be alive here, and it is between you and the only way on. Recommend withdrawal. There is no route that permits withdrawal.'},
     // the choice — only after IT is down
     {x:640,y:300,r:70,who:'Captain Mayo',text:'You came back. Cannot feel my legs, rookie. You can carry me and we both go slow — or you leave me and you go fast. Your call. Make it quick.',
       cond:()=> S.phase>=2,
@@ -320,14 +320,14 @@ const LEVELS = {
     start: {hasClub:true, hasFlag:false},
     ball: null,                      // no golf here
     lander: null,                    // underground
-    npcs: [[700,1832]],              // Mayo, down beside you at the cave mouth
+    npcs: [],                        // you lose him on the way in
     rocks: [],                       // all placed by buildTerrain
     meteors: false,
     dark: true,                      // switches on the flashlight/darkness pass
     goal: {mode:'trigger'},          // the beacon trigger ends it
     win: {title:'SIGNAL ACQUIRED',
           flavor:'Something is still moving back there. You do not look.'},
-    hint: ()=> S.phase===0 ? 'SEARCH THE CAVERN FOR OXYGEN'
+    hint: ()=> S.phase===0 ? 'FIND MAYO — SEARCH THE CAVERN'
              : S.phase===1 ? 'FOLLOW THE TRAIL — AND WATCH THE DARK'
              :               'GET OUT — HEAD FOR THE SIGNAL',
     triggers: L3.triggers,
@@ -567,10 +567,6 @@ function makeTextures(sc){
   // dropped gear at the empty camp, and the wounded companion
   T('gear',14,10,g=>{ g.fillStyle(0x3a7bd8); g.fillRect(1,3,7,6);
     g.fillStyle(0x9a978c); g.fillRect(8,4,5,4); g.fillStyle(0x2c2c36); g.fillRect(0,8,14,2); });
-  // Gemini-suit skeleton: lore dressing along the trail and around the nest
-  T('bones',16,12,g=>{ g.fillStyle(0xb8b3a4); g.fillRect(5,0,6,5);
-    g.fillStyle(0x8a8798); g.fillRect(6,1,4,3);
-    g.fillStyle(0xb8b3a4); g.fillRect(3,6,10,2); g.fillRect(2,9,5,2); g.fillRect(9,9,5,2); });
   // blinking exit waypoint
   T('beacon',10,16,g=>{ g.fillStyle(0x2c2c36); g.fillRect(3,6,4,10);
     g.fillStyle(0x6ba0e8); g.fillRect(2,0,6,6); g.fillStyle(0xd8f0ff); g.fillRect(3,1,4,3); });
