@@ -229,6 +229,7 @@ const LEVELS = {
     name: 'LEVEL 1 — LANDING',
     title: 'MUNDUS MIRIS — Level 1: Landing',
     spawn: {x:600, y:1850},
+    respawnLabel: 'RESPAWN AT LANDER',
     start: {hasClub:false, hasFlag:false},
     ball: {x:470, y:1410},
     lander: {tex:'lander', x:660, y:1690},
@@ -276,6 +277,7 @@ const LEVELS = {
     name: 'LEVEL 2 - DEATH FROM ABOVE',
     title: 'MUNDUS MIRIS — Level 2: Death From Above',
     spawn: {x:640, y:275},           // the summit — where Level 1 ended
+    respawnLabel: 'RESPAWN AT SUMMIT',
     start: {hasClub:true, hasFlag:false},
     ball: {x:470, y:1410},
     /* The ascent stage has gone. y=1714 rather than 1690 so the shorter
@@ -322,6 +324,7 @@ const LEVELS = {
     name: 'LEVEL 3 — NYCTOPHOBIA',
     title: 'MUNDUS MIRIS — Level 3: Nyctophobia',
     spawn: {x:640, y:1820},
+    respawnLabel: 'RESPAWN AT CAVE MOUTH',
     start: {hasClub:true, hasFlag:false},
     ball: null,                      // no golf here
     lander: null,                    // underground
@@ -1168,7 +1171,13 @@ class LevelScene extends Phaser.Scene {
     const d = DEATHS[cause] || DEATHS.unknown;
     ui.deadReason.textContent = d.reason;
     setDeathArt(d.img);
-    document.getElementById('btnRespawn').textContent = S.checkpoint ? 'RESPAWN AT FLARE' : 'RESPAWN AT LANDER';
+    /* Without a flare you go back to the level's spawn point, which is a
+       lander only on Level 1. Note this is NOT the same as the RESTART LEVEL
+       button beside it: respawning keeps the level as you left it — smashed
+       rocks stay smashed, dead crawlers stay dead — so the label says respawn,
+       not restart. */
+    document.getElementById('btnRespawn').textContent =
+      S.checkpoint ? 'RESPAWN AT FLARE' : (this.cfg.respawnLabel || 'RESPAWN AT START');
     ui.dead.style.display='flex';
   }
   respawn(){
