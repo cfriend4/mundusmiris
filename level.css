@@ -17,6 +17,12 @@ canvas{image-rendering:pixelated;}
 #o2fill{background:var(--o2); width:100%;}
 #o2fill.low{animation:blink .5s steps(2) infinite;}
 @keyframes blink{50%{opacity:.35;}}
+/* Optional oxygen countdown. Red throughout so it reads as a warning, and it
+   flashes below the same 25% threshold that already blinks the bar — a
+   permanently flashing readout would be exhausting across a whole level. */
+#o2clock{display:none; font-size:15px; font-weight:bold; letter-spacing:2px;
+  color:var(--hp); text-shadow:0 1px 0 #000; margin:-2px 0 6px;}
+#o2clock.low{animation:blink .5s steps(2) infinite;}
 #meta{position:absolute; top:10px; right:12px; text-align:right; font-size:11px; color:var(--bone); pointer-events:none;}
 #meta .flare{color:var(--gold);}
 
@@ -55,6 +61,8 @@ canvas{image-rendering:pixelated;}
 #settings, #controlsPanel{width:250px; background:var(--panel); border:1px solid var(--line); padding:14px; font-size:11px; display:none;}
 #settings h3, #controlsPanel h3{font-size:11px; letter-spacing:2px; color:var(--gold); margin-bottom:10px;}
 #settings label{display:block; color:var(--dim); margin:8px 0 4px;}
+#settings label.chk{display:flex; align-items:center; gap:6px; cursor:pointer; margin-top:10px;}
+#settings label.chk input{cursor:pointer; accent-color:var(--gold);}
 #settings input[type=range]{width:100%;}
 #settings .val{color:var(--bone);}
 .keys{color:var(--dim); line-height:1.8;}
