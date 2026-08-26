@@ -15,7 +15,7 @@ const TUNE = {
   drainPerSec: 0.55,       // ambient (multiplied by settings slider)
   jumpCost: 2.0,
   swingCost: 3.0,
-  tankRefill: 40,
+  tankRefillPct: 0.5,      // a tank restores half a full tank of O2
   suffocateHpPerSec: 12,
   moveSpeed: 95,           // slow, heavy
   jumpMs: 1000, jumpHeight: 30,
@@ -71,7 +71,8 @@ const DEATHS = {
                img:'assets/MundusMirisFallDeathImage.png' },
   suffocate: { reason:'Oxygen depleted. The suit kept you moving longer than it should have.',
                img:'assets/MundusMirisSuffocationDeathImage.png' },
-  meteor:    { reason:'A strike caught you in the open. The suit did not hold.', img:null },
+  meteor:    { reason:'A strike caught you in the open. The suit did not hold.',
+               img:'assets/MundusMirisAsteroidDeathImage.png' },
   unknown:   { reason:'Your suit telemetry has gone dark.', img:null },
 };
 
@@ -180,6 +181,8 @@ const ui = {
   respawnVal: document.getElementById('respawnVal'),
   drainRate: document.getElementById('drainRate'),
   drainVal: document.getElementById('drainVal'),
+  o2Timer: document.getElementById('o2Timer'),
+  o2clock: document.getElementById('o2clock'),
 };
 
 document.getElementById('gear').onclick = () => {
@@ -193,21 +196,29 @@ document.getElementById('controlsBtn').onclick = () => {
 /* Settings live in localStorage so they survive the trip out to the level-select
    page and back — they used to persist for free when this was all one page. */
 const PREFS='mundusMirisPrefs';
+/* Bumped when a stored default changes meaningfully. Anyone who played before
+   the drain default moved to 1.5x has 1.0x saved, and would silently keep the
+   old balance forever — so a stale version drops the saved drain (only) and
+   takes the new default. Their respawn choice is personal taste, so it stays. */
+const PREFS_V = 2;
 (function loadPrefs(){
   try{
     const p=JSON.parse(localStorage.getItem(PREFS)||'{}');
     if(p.respawnO2) ui.respawnO2.value=p.respawnO2;
-    if(p.drainRate) ui.drainRate.value=p.drainRate;
+    if(p.drainRate && p.v===PREFS_V) ui.drainRate.value=p.drainRate;
+    if(typeof p.o2Timer==='boolean') ui.o2Timer.checked=p.o2Timer;
   }catch(e){ /* private mode or blocked storage — defaults are fine */ }
   ui.respawnVal.textContent = ui.respawnO2.value + '%';
   ui.drainVal.textContent = (ui.drainRate.value/100).toFixed(1) + '×';
 })();
 function savePrefs(){
   try{ localStorage.setItem(PREFS, JSON.stringify({
-    respawnO2: ui.respawnO2.value, drainRate: ui.drainRate.value })); }catch(e){}
+    v: PREFS_V, respawnO2: ui.respawnO2.value, drainRate: ui.drainRate.value,
+    o2Timer: ui.o2Timer.checked })); }catch(e){}
 }
 ui.respawnO2.oninput = () => { ui.respawnVal.textContent = ui.respawnO2.value + '%'; savePrefs(); };
 ui.drainRate.oninput = () => { ui.drainVal.textContent = (ui.drainRate.value/100).toFixed(1) + '×'; savePrefs(); };
+ui.o2Timer.onchange  = () => { savePrefs(); if(scene) scene.updateHUD(); };
 document.getElementById('btnRestart').onclick = () => restartLevel();
 document.getElementById('btnDeadRestart').onclick = () => restartLevel();
 document.getElementById('btnWinRestart').onclick = () => restartLevel();
@@ -470,7 +481,7 @@ class LevelScene extends Phaser.Scene {
     this.physics.add.collider(this.base,this.lander);
     this.physics.add.collider(this.base,this.rocks);
     this.physics.add.collider(this.base,this.hazards,null,()=> this.z===0);
-    this.physics.add.overlap(this.base,this.tanks,(b,t)=>{ if(S.o2<TUNE.o2Max-1){ S.o2=Math.min(TUNE.o2Max,S.o2+TUNE.tankRefill); this.pop(t.x,t.y,'+O2',0x6ba0e8); t.destroy(); }});
+    this.physics.add.overlap(this.base,this.tanks,(b,t)=>{ if(S.o2<TUNE.o2Max-1){ S.o2=Math.min(TUNE.o2Max,S.o2+TUNE.o2Max*TUNE.tankRefillPct); this.pop(t.x,t.y,'+O2',0x6ba0e8); t.destroy(); }});
     this.physics.add.overlap(this.base,this.flarePickups,(b,f)=>{ S.flares++; this.pop(f.x,f.y,'+FLARE',0xffd54a); f.destroy(); });
 
     // ---- camera
@@ -808,8 +819,26 @@ class LevelScene extends Phaser.Scene {
   updateHUD(){
     ui.hp.style.width=(S.hp/TUNE.hpMax*100)+'%';
     ui.o2.style.width=(S.o2/TUNE.o2Max*100)+'%';
-    ui.o2.classList.toggle('low',S.o2<25);
+    const low = S.o2 < 25;
+    ui.o2.classList.toggle('low',low);
     ui.flares.textContent='FLARES ×'+S.flares;
+
+    // optional countdown: how long the remaining oxygen actually lasts at the
+    // current drain setting. Flashes once it drops under the same threshold
+    // that already makes the bar blink.
+    if(ui.o2Timer.checked){
+      const rate = TUNE.drainPerSec * (parseInt(ui.drainRate.value,10)/100);
+      ui.o2clock.style.display='block';
+      if(rate > 0){
+        const s = Math.max(0, Math.ceil(S.o2/rate));
+        ui.o2clock.textContent = Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+      } else {
+        ui.o2clock.textContent = '--:--';   // drain slider at zero
+      }
+      ui.o2clock.classList.toggle('low',low);
+    } else {
+      ui.o2clock.style.display='none';
+    }
   }
 }
 

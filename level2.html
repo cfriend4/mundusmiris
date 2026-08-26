@@ -19,6 +19,7 @@
     <div class="bar"><div id="hpfill"></div></div>
     <div class="barlabel">Oxygen</div>
     <div class="bar"><div id="o2fill"></div></div>
+    <div id="o2clock"></div>
   </div>
 
   <div id="meta">
@@ -31,8 +32,9 @@
       <h3>SETTINGS</h3>
       <label>Oxygen on respawn: <span class="val" id="respawnVal">60%</span></label>
       <input type="range" id="respawnO2" min="10" max="100" step="5" value="60" aria-label="Oxygen on respawn">
-      <label>Ambient O2 drain: <span class="val" id="drainVal">1.0×</span></label>
-      <input type="range" id="drainRate" min="0" max="200" step="10" value="100" aria-label="Ambient oxygen drain multiplier">
+      <label>Ambient O2 drain: <span class="val" id="drainVal">1.5×</span></label>
+      <input type="range" id="drainRate" min="0" max="200" step="10" value="150" aria-label="Ambient oxygen drain multiplier">
+      <label class="chk"><input type="checkbox" id="o2Timer"> Show oxygen countdown</label>
       <div style="margin-top:12px;">
         <button id="btnRestart" class="ghost">RESTART LEVEL</button>
       </div>
