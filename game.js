@@ -121,7 +121,8 @@ const DEATHS = {
                img:'assets/MundusMirisAsteroidDeathImage.png' },
   crawler:   { reason:'They found you in the dark. There were more than you counted.',
                img:'assets/MundusMirisCrawlerDeathImage.png' },
-  it:        { reason:'Something in the nest was much larger than the rest.', img:null },
+  it:        { reason:'Something in the nest was much larger than the rest.',
+               img:'assets/MundusMirisCrawlerDeathImage.png' },
   unknown:   { reason:'Your suit telemetry has gone dark.', img:null },
 };
 
