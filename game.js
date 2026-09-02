@@ -75,12 +75,12 @@ const TUNE = {
     hp: 14,                   // 20 made the fight cost more air than exists
     damage: 18,
     telegraphMs: 500,         // tint-flash warning before it commits to a lunge
-    lungeSpeed: 220,
+    lungeSpeed: 175,         // 220 closed 88px on you per lunge — unescapable
     lungeMs: 700,
     restMs: 1100,
-    aggroRadius: 420,
+    aggroRadius: 250,        // 420 covered the whole chamber; it never let go
     contactCooldown: 900,
-    contactRadius: 50,        // it is 75x102 on screen — a much bigger reach
+    contactRadius: 42,        // only applies mid-lunge, see updateCrawlers
   },
   companion: {
     speedMult: 0.8,           // carrying him slows you
@@ -119,7 +119,8 @@ const DEATHS = {
                img:'assets/MundusMirisSuffocationDeathImage.png' },
   meteor:    { reason:'A strike caught you in the open. The suit did not hold.',
                img:'assets/MundusMirisAsteroidDeathImage.png' },
-  crawler:   { reason:'They found you in the dark. There were more than you counted.', img:null },
+  crawler:   { reason:'They found you in the dark. There were more than you counted.',
+               img:'assets/MundusMirisCrawlerDeathImage.png' },
   it:        { reason:'Something in the nest was much larger than the rest.', img:null },
   unknown:   { reason:'Your suit telemetry has gone dark.', img:null },
 };
@@ -1037,8 +1038,12 @@ class LevelScene extends Phaser.Scene {
       const d = Phaser.Math.Distance.Between(e.x,e.y,px,py);
       e.setDepth(e.y);
 
-      // touching you hurts, straight away, then on a per-enemy cooldown
-      if(d < C.contactRadius && time - e.lastTouch > C.contactCooldown){
+      /* Touching a crawler hurts straight away. The boss only hurts you while
+         it is actually lunging — being near it while it winds up or recovers
+         is safe, which is what makes the telegraph mean anything and gives you
+         a window to step in, swing, and step out. */
+      const canTouch = !e.isBoss || e.state==='lunge';
+      if(canTouch && d < C.contactRadius && time - e.lastTouch > C.contactCooldown){
         e.lastTouch = time;
         this.damage(C.damage, e.isBoss?'it':'crawler');
         this.cameras.main.shake(90,0.005);
