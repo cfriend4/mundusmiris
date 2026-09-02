@@ -48,19 +48,25 @@ const TUNE = {
 
   /* Level 3: the cave. Each subsystem gets its own block, the same way the
      meteor shower does, so it can be tuned without hunting through code. */
-  flashlight: {
-    range: 105,               // ~3 steps, about a third of the way to the
-                              // screen edge — you outrun your own light
-    coneDeg: 42,              // a real beam: what you point at, nothing else
-    rays: 26,                 // rays across the cone; more = smoother edge
-    rayStep: 6,               // px per occlusion probe along a ray
-    ambient: 0.94,            // darkness opacity outside the beam
-    halo: 20,                 // just enough to see your own suit
+  /* A lamp on the suit, not a torch: a small pool of light around you rather
+     than a beam you aim. Cast in every direction and stopped by walls, so a
+     corridor lights up along its length but a room the other side of rock
+     stays black. */
+  lamp: {
+    radius: 76,               // the lit pool — about two paces
+    penumbra: 1.45,           // faint outer falloff, as a multiple of radius
+    penumbraAlpha: 0.45,      // how much of the dark that falloff removes
+    rays: 56,                 // rays around the full circle; more = rounder
+    rayStep: 5,               // px per occlusion probe along a ray
+    ambient: 0.94,            // darkness opacity outside the lamp
   },
   crawler: {
     hp: 3,                    // swings to kill (rocks take 2)
     damage: 6,
     contactCooldown: 700,     // ms between touches from the same crawler
+    contactRadius: 30,        // crawler is 44x60 on screen, you are 28x36
+    knockback: 300,           // px/s the club shoves one away
+    knockbackMs: 280,         // how long it flies before steering resumes
     speed: 55,                // slower than the player's 95 — you can outrun one
     aggroRadius: 140,
     loseRadius: 320,          // gives up past this, so packs don't trail forever
@@ -69,11 +75,12 @@ const TUNE = {
     hp: 14,                   // 20 made the fight cost more air than exists
     damage: 18,
     telegraphMs: 500,         // tint-flash warning before it commits to a lunge
-    lungeSpeed: 220,
+    lungeSpeed: 175,         // 220 closed 88px on you per lunge — unescapable
     lungeMs: 700,
     restMs: 1100,
-    aggroRadius: 420,
+    aggroRadius: 250,        // 420 covered the whole chamber; it never let go
     contactCooldown: 900,
+    contactRadius: 42,        // only applies mid-lunge, see updateCrawlers
   },
   companion: {
     speedMult: 0.8,           // carrying him slows you
@@ -112,8 +119,10 @@ const DEATHS = {
                img:'assets/MundusMirisSuffocationDeathImage.png' },
   meteor:    { reason:'A strike caught you in the open. The suit did not hold.',
                img:'assets/MundusMirisAsteroidDeathImage.png' },
-  crawler:   { reason:'They found you in the dark. There were more than you counted.', img:null },
-  it:        { reason:'Something in the nest was much larger than the rest.', img:null },
+  crawler:   { reason:'They found you in the dark. There were more than you counted.',
+               img:'assets/MundusMirisCrawlerDeathImage.png' },
+  it:        { reason:'Something in the nest was much larger than the rest.',
+               img:'assets/MundusMirisCrawlerDeathImage.png' },
   unknown:   { reason:'Your suit telemetry has gone dark.', img:null },
 };
 
@@ -333,7 +342,7 @@ const LEVELS = {
     npcs: [],                        // you lose him on the way in
     rocks: [],                       // all placed by buildTerrain
     meteors: false,
-    dark: true,                      // switches on the flashlight/darkness pass
+    dark: true,                      // switches on the lamp/darkness pass
     goal: {mode:'trigger'},          // the beacon trigger ends it
     win: {title:'SIGNAL ACQUIRED',
           flavor:'Something is still moving back there. You do not look.'},
@@ -567,13 +576,6 @@ function makeTextures(sc){
   // the boss is the same shape read larger and colder, with brighter eyes
   T('crawlerBoss',22,30,g=>crawlerBody(g,0x38323c,0x1a1620,0xff3b2f));
 
-  // soft-edged beam mask: a radial falloff the flashlight punches into the dark
-  T('lightBlob',128,128,g=>{
-    for(let r=64;r>0;r-=2){
-      g.fillStyle(0xffffff, 0.020*(1-r/64)+0.004);
-      g.fillCircle(64,64,r);
-    }
-  });
   // dropped gear at the empty camp, and the wounded companion
   T('gear',14,10,g=>{ g.fillStyle(0x3a7bd8); g.fillRect(1,3,7,6);
     g.fillStyle(0x9a978c); g.fillRect(8,4,5,4); g.fillStyle(0x2c2c36); g.fillRect(0,8,14,2); });
@@ -779,14 +781,11 @@ class LevelScene extends Phaser.Scene {
     if(this.enemies){
       this.physics.add.collider(this.base,this.enemies);
       this.physics.add.collider(this.enemies,this.cliffs);
-      this.physics.add.overlap(this.base,this.enemies,(b,e)=>{
-        const C = e.isBoss ? TUNE.boss : TUNE.crawler;
-        if(this.time.now - e.lastTouch < C.contactCooldown) return;
-        e.lastTouch = this.time.now;
-        this.damage(C.damage, e.isBoss?'it':'crawler');
-        this.cameras.main.shake(90,0.005);
-        this.pop(this.base.x,this.base.y-24,'-'+C.damage,0xb3202a);
-      });
+      /* Contact damage is checked by distance in updateCrawlers, not by a
+         physics overlap. The collider above separates the two bodies the
+         instant they meet, so an overlap on the same pair fires only
+         intermittently — you could be shoved around by a crawler and take
+         nothing. A distance test lands the hit the moment they reach you. */
     }
 
     this.updateHUD();
@@ -941,17 +940,14 @@ class LevelScene extends Phaser.Scene {
     }
   }
 
-  /* ---------- Level 3: darkness + flashlight ----------
+  /* ---------- Level 3: darkness + suit lamp ----------
      A dark rectangle locked to the camera, with the beam punched through it in
      ERASE blend mode. Chosen over Phaser's Light2D pipeline because that would
      mean opting every shared texture helper into a pipeline — reaching into
      Levels 1 and 2's rendering for no benefit to them. */
   buildDarkness(){
-    const F = TUNE.flashlight;
     this.dark = this.add.renderTexture(0,0,840,620)
       .setOrigin(0,0).setScrollFactor(0).setDepth(9000);
-    this.halo = this.make.image({key:'lightBlob', add:false}).setOrigin(0.5,0.5)
-      .setScale(F.halo/64);
     this.beamPoly = this.make.graphics({add:false});
     this.buildWallIndex();
   }
@@ -979,40 +975,41 @@ class LevelScene extends Phaser.Scene {
     for(const c of a) if(Math.abs(x-c.x)<24 && Math.abs(y-c.y)<24) return true;
     return false;
   }
-  // how far the beam gets along one ray before a wall stops it
+  // how far the light gets along one ray before a wall stops it
   castRay(ang, maxD){
-    const st = TUNE.flashlight.rayStep;
+    const st = TUNE.lamp.rayStep;
     for(let d=st; d<=maxD; d+=st){
       if(this.solidAt(this.base.x+Math.cos(ang)*d, this.base.y+Math.sin(ang)*d)) return d-st;
     }
     return maxD;
   }
+  /* One ring of the lamp: a closed polygon of ray hits at the given reach,
+     erased out of the dark layer. Casting per-ray is what keeps light from
+     crossing rock — a plain circle would glow straight through the walls. */
+  eraseLampRing(sx, sy, reach, alpha, zoom){
+    const L = TUNE.lamp, g = this.beamPoly;
+    g.clear(); g.fillStyle(0xffffff, alpha);
+    g.beginPath();
+    for(let i=0;i<L.rays;i++){
+      const a = (i/L.rays) * Math.PI*2;
+      const d = this.castRay(a, reach) * zoom;
+      const px = sx + Math.cos(a)*d, py = sy + Math.sin(a)*d;
+      if(i===0) g.moveTo(px,py); else g.lineTo(px,py);
+    }
+    g.closePath(); g.fillPath();
+    this.dark.erase(g);
+  }
   updateDarkness(){
     if(!this.dark) return;
-    const F = TUNE.flashlight, cam = this.cameras.main;
+    const L = TUNE.lamp, cam = this.cameras.main;
     // screen-space player position, since the overlay doesn't scroll
     const sx = (this.base.x - cam.worldView.x) * cam.zoom;
     const sy = (this.base.y - cam.worldView.y) * cam.zoom;
     this.dark.clear();
-    this.dark.fill(0x04040a, F.ambient);
-    this.dark.erase(this.halo, sx, sy);
-
-    /* The beam is a fan of rays, each stopped at the first wall it meets, and
-       the resulting polygon is erased in one pass. Casting per-ray is what
-       keeps light out of rooms you can't see into — a plain cone would spill
-       straight through the cave walls. */
-    const base = Math.atan2(S.facing.y, S.facing.x);
-    const half = Phaser.Math.DegToRad(F.coneDeg)/2;
-    const g = this.beamPoly;
-    g.clear(); g.fillStyle(0xffffff,1);
-    g.beginPath(); g.moveTo(sx,sy);
-    for(let i=0;i<=F.rays;i++){
-      const a = base - half + (2*half)*(i/F.rays);
-      const d = this.castRay(a, F.range) * cam.zoom;
-      g.lineTo(sx + Math.cos(a)*d, sy + Math.sin(a)*d);
-    }
-    g.closePath(); g.fillPath();
-    this.dark.erase(g);
+    this.dark.fill(0x04040a, L.ambient);
+    // faint outer falloff first, then the bright core over it
+    this.eraseLampRing(sx, sy, L.radius*L.penumbra, L.penumbraAlpha, cam.zoom);
+    this.eraseLampRing(sx, sy, L.radius, 1, cam.zoom);
   }
 
   /* ---------- Level 3: crawlers ----------
@@ -1041,6 +1038,24 @@ class LevelScene extends Phaser.Scene {
       const C = e.isBoss ? TUNE.boss : TUNE.crawler;
       const d = Phaser.Math.Distance.Between(e.x,e.y,px,py);
       e.setDepth(e.y);
+
+      /* Touching a crawler hurts straight away. The boss only hurts you while
+         it is actually lunging — being near it while it winds up or recovers
+         is safe, which is what makes the telegraph mean anything and gives you
+         a window to step in, swing, and step out. */
+      const canTouch = !e.isBoss || e.state==='lunge';
+      if(canTouch && d < C.contactRadius && time - e.lastTouch > C.contactCooldown){
+        e.lastTouch = time;
+        this.damage(C.damage, e.isBoss?'it':'crawler');
+        this.cameras.main.shake(90,0.005);
+        this.pop(this.base.x,this.base.y-24,'-'+C.damage,0xb3202a);
+      }
+
+      // knocked back by the club: let the velocity carry it, no steering
+      if(e.state==='knocked'){
+        if(time - e.stateAt < TUNE.crawler.knockbackMs) return;
+        e.state = 'chase';
+      }
 
       if(e.isBoss){
         // It does not stir until the level wakes it, so it cannot come down
@@ -1091,7 +1106,19 @@ class LevelScene extends Phaser.Scene {
   }
   hurtEnemy(e, n){
     e.hp -= n;
-    if(e.hp > 0){ e.setTint(0x9a4a4a); this.time.delayedCall(120,()=>e.active&&e.clearTint()); return; }
+    if(e.hp > 0){
+      e.setTint(0x9a4a4a); this.time.delayedCall(120,()=>e.active&&e.clearTint());
+      /* The club shoves a crawler off you. Without this the swing has no
+         felt effect until the third hit kills it, and a pack simply stands
+         on top of you chewing through your health while you flail. The boss
+         is far too heavy to move. */
+      if(!e.isBoss){
+        const a = Math.atan2(e.y - this.base.y, e.x - this.base.x);
+        e.setVelocity(Math.cos(a)*TUNE.crawler.knockback, Math.sin(a)*TUNE.crawler.knockback);
+        e.state = 'knocked'; e.stateAt = this.time.now;
+      }
+      return;
+    }
     this.pop(e.x,e.y, e.isBoss?'IT FALLS':'KILLED', 0xd8d3c4);
     if(e.isBoss) this.onBossDown();
     e.destroy();
