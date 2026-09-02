@@ -25,6 +25,7 @@
   <div id="meta">
     <div id="levelName">LEVEL 3 — NYCTOPHOBIA</div>
     <div class="flare" id="flareCount">FLARES ×3</div>
+    <div id="runClock"></div>
   </div>
   <div id="menuStack">
     <button id="gear" aria-label="Settings">SETTINGS</button>
@@ -73,6 +74,18 @@
   <div class="overlay" id="winOverlay">
     <div class="card">
       <h2 id="winTitle">SIGNAL ACQUIRED</h2>
+      <div id="scoreCard">
+        <div id="scoreTotal"><b>0</b> / 1000</div>
+        <div id="rankTitle"></div>
+        <p id="rankLine"></p>
+        <table id="scoreRows">
+          <tr><td>TIME</td>   <td id="sTimeVal">0:00</td> <td id="sTime">0 / 500</td></tr>
+          <tr><td>VITALS</td> <td id="sHpVal">0%</td>     <td id="sHp">0 / 250</td></tr>
+          <tr><td>OXYGEN</td> <td id="sO2Val">0%</td>     <td id="sO2">0 / 250</td></tr>
+          <tr id="sPenRow"><td>DEATHS</td><td id="sPenVal">0</td><td id="sPen">0</td></tr>
+        </table>
+        <div id="scoreBest"></div>
+      </div>
       <p id="winStats"></p>
       <p id="winFlavor" style="color:var(--bone);">Something is still moving back there. You do not look.</p>
       <a class="btnlink primary" id="btnNext" href="#">NEXT LEVEL</a>

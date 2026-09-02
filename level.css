@@ -25,9 +25,15 @@ canvas{image-rendering:pixelated;}
 #o2clock.low{animation:blink .5s steps(2) infinite;}
 #meta{position:absolute; top:10px; right:12px; text-align:right; font-size:11px; color:var(--bone); pointer-events:none;}
 #meta .flare{color:var(--gold);}
+/* Run clock vs par. Dim while you are inside par — it is information, not
+   pressure — and amber once you are over, which is the moment the time score
+   starts draining. */
+#runClock{color:var(--dim); letter-spacing:1px;}
+#runClock.over{color:var(--gold);}
 
-/* Corner menu stack: buttons + their panels stack top-to-bottom automatically */
-#menuStack{position:absolute; top:34px; right:12px; display:flex; flex-direction:column; align-items:flex-end;}
+/* Corner menu stack: buttons + their panels stack top-to-bottom automatically.
+   52px clears the three lines of #meta above it (level name, flares, clock). */
+#menuStack{position:absolute; top:52px; right:12px; display:flex; flex-direction:column; align-items:flex-end;}
 #menuStack > *{margin-top:6px;}
 #menuStack > *:first-child{margin-top:0;}
 #gear, #controlsBtn{pointer-events:auto; background:var(--panel); color:var(--dim); border:1px solid var(--line); font-family:inherit; font-size:10px; padding:3px 8px; cursor:pointer; letter-spacing:1px;}

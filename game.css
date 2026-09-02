@@ -40,3 +40,30 @@ body{background:var(--ink); color:var(--bone); font-family:"Courier New",monospa
 
 /* the win card carries three actions; 480px would wrap them onto two rows */
 #winOverlay .card{max-width:520px;}
+
+/* End-of-level score. Lives on the level pages only, but the win card it sits
+   inside is styled here, so its rules stay with it. */
+#scoreCard{margin:2px 0 14px;}
+#scoreTotal{font-size:13px; letter-spacing:3px; color:var(--dim); margin-bottom:10px;}
+#scoreTotal b{font-size:30px; letter-spacing:2px; color:var(--gold); font-weight:bold;}
+/* The verdict. Gold for a good run, bone for a middling one, red when the
+   card is being unkind — the colour lands before you have read the words. */
+#rankTitle{font-size:13px; font-weight:bold; letter-spacing:3px; margin-bottom:6px;}
+#rankTitle.good{color:var(--gold);}
+#rankTitle.mid{color:var(--bone);}
+#rankTitle.bad{color:var(--hp);}
+/* .overlay p sets a 14px bottom margin that would float the quip off the table */
+#rankLine{font-size:11px; line-height:1.6; color:var(--dim); margin:0 auto; max-width:400px;}
+
+/* The verdict above and the arithmetic below are two different registers, so
+   they get a real gap and a rule between them rather than running together. */
+#scoreRows{width:100%; border-collapse:collapse; font-size:11px; letter-spacing:1px;
+  margin-top:22px;}
+#scoreRows td{padding:5px 8px; border-top:1px solid var(--line);}
+#scoreRows tr:first-child td{border-top:1px solid var(--dim);}     /* the divider */
+#scoreRows td:first-child{text-align:left; padding-left:0; color:var(--dim);}   /* label */
+#scoreRows td:nth-child(2){text-align:center; color:var(--bone);}  /* what you had */
+#scoreRows td:last-child{text-align:right; padding-right:0; color:var(--bone);} /* points */
+#sPenRow td:last-child{color:var(--hp);}
+#scoreBest{font-size:10px; letter-spacing:2px; color:var(--dim); margin-top:10px;}
+#scoreBest.new{color:var(--gold);}
