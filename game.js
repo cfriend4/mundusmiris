@@ -89,6 +89,10 @@ const TUNE = {
   },
   mercySwingCostMult: 0.8,    // leaving him: swings cost less, guilt is free
   tanksRequiredPhase1: 3,
+
+  /* End-of-level score, out of 1000. See scoreRun() for the shape of the
+     curve; the par times themselves are per-level, over in LEVELS. */
+  score: { time:500, hp:250, o2:250, deathPenalty:100, parFailMult:2 },
 };
 
 /* Honour the OS reduced-motion setting for the impact shake, as the menu
@@ -108,6 +112,7 @@ const S = {  // mutable game state (reset on restart)
   hasCompanion: false,       // Level 3: carrying him costs speed and air
   phase: 0,                  // Level 3 story phase, drives the objective hint
   startTime: 0, deaths: 0,
+  pausedMs: 0,               // time spent in dialogue, not counted against par
 };
 
 /* What each way of dying says and shows. The art is never preloaded — setting
@@ -125,6 +130,31 @@ const DEATHS = {
                img:'assets/MundusMirisCrawlerDeathImage.png' },
   unknown:   { reason:'Your suit telemetry has gone dark.', img:null },
 };
+
+/* Score out of 1000: 500 for pace, 250 each for the vitals and the air you
+   finish with, minus a flat hit per death. Par earns full marks rather than
+   sitting mid-scale — the clock is here to stop you dawdling, not to demand a
+   speedrun — then decays linearly to nothing at twice par.
+   Deaths are penalised because respawn() is a full heal: without this, dying on
+   the goal's doorstep would be the optimal play. Pure by design, so the curve
+   can be checked straight from the console. */
+function scoreRun({secs, par, hp, o2, deaths}){
+  const SC = TUNE.score;
+  const pace = Phaser.Math.Clamp(SC.parFailMult - secs/par, 0, 1);
+  const time = Math.round(SC.time * pace);
+  const vit  = Math.round(SC.hp * Phaser.Math.Clamp(hp/TUNE.hpMax, 0, 1));
+  const air  = Math.round(SC.o2 * Phaser.Math.Clamp(o2/TUNE.o2Max, 0, 1));
+  const pen  = deaths * SC.deathPenalty;
+  return { time, vit, air, pen, total: Math.max(0, time + vit + air - pen) };
+}
+
+/* The verdict that goes with the number. Each level carries its own ladder in
+   LEVELS.ranks, ordered high to low, so the jokes can be about that level —
+   the flag on Level 1, the shower on Level 2, the dark on Level 3. The last
+   entry is min:0, so there is always a match and always something rude. */
+function pickRank(ranks, total){
+  return ranks.find(r => total >= r.min) || ranks[ranks.length-1];
+}
 
 /* ---------------- Level 3: the cave ------------------------------------
    Kept in its own object so LEVELS stays readable. build() replaces the
@@ -257,6 +287,21 @@ const LEVELS = {
       requires: ()=> S.hasFlag,
     },
     win: {title:'FLAG PLANTED', flavor:'The ground begins to tremble...'},
+    par: 60,                         // seconds for full marks on pace
+    ranks: [
+      {min:900, tone:'good', title:'ONE SMALL STEP',
+       line:'One small step for mankind — and, remarkably, for you too.'},
+      {min:750, tone:'good', title:'THE RIGHT STUFF',
+       line:'Houston has reviewed the tape. Houston is impressed. Houston will deny saying so.'},
+      {min:600, tone:'mid',  title:'NOMINAL',
+       line:'Textbook. Not the chapter anyone reads twice, but a chapter.'},
+      {min:450, tone:'mid',  title:'SIGHTSEER',
+       line:'You planted the flag. Eventually. The flag has questions.'},
+      {min:250, tone:'bad',  title:'SELF-LOADING BALLAST',
+       line:'Three hundred thousand kilometres without incident, then you got lost on the last four hundred metres.'},
+      {min:0,   tone:'bad',  title:'PAYLOAD',
+       line:'Eighteen months of training. The selection committee has gone very quiet.'},
+    ],
     next: 'level2.html',
     /* Directions checked against the actual trigger coordinates below:
        Mayo (470,1380) is 310px north and 190px west of the lander, and
@@ -313,6 +358,21 @@ const LEVELS = {
     goal: {mode:'trigger'},          // no zone: Mayo's win trigger ends it
     win: {title:'STRANDED',
           flavor:'The ridge is coming apart behind you. Mayo is already moving.'},
+    par: 90,
+    ranks: [
+      {min:900, tone:'good', title:'UNTOUCHABLE',
+       line:'The sky emptied itself at you. The sky missed.'},
+      {min:750, tone:'good', title:'STORM RUNNER',
+       line:'You read the ground lighting up red and went anyway. That is the whole job.'},
+      {min:600, tone:'mid',  title:'GRAZED',
+       line:'You got down. Bits of the ridge got down faster, and closer.'},
+      {min:450, tone:'mid',  title:'TENDERISED',
+       line:'A descent measured less in seconds than in impacts absorbed.'},
+      {min:250, tone:'bad',  title:'LIGHTNING ROD',
+       line:'The rocks were falling at random. You kept making yourself easy to find.'},
+      {min:0,   tone:'bad',  title:'IMPACT SITE',
+       line:'Nothing up there was aiming at you. Somehow that is worse.'},
+    ],
     next: 'level3.html',
     hint: ()=> 'RUN — GET BACK TO THE LANDER',
     triggers: [
@@ -346,6 +406,21 @@ const LEVELS = {
     goal: {mode:'trigger'},          // the beacon trigger ends it
     win: {title:'SIGNAL ACQUIRED',
           flavor:'Something is still moving back there. You do not look.'},
+    par: 180,
+    ranks: [
+      {min:900, tone:'good', title:'MASTER SPACE SPELUNKER',
+       line:'Through the nest, past the thing in it, out the far side. The dark learned your name.'},
+      {min:750, tone:'good', title:'CAVE-BORN',
+       line:'You stopped waving the lamp around and started using it. Big difference.'},
+      {min:600, tone:'mid',  title:'RATTLED',
+       line:'Out, intact, and never voluntarily going back. Entirely reasonable.'},
+      {min:450, tone:'mid',  title:'AFRAID OF THE DARK',
+       line:'Every shadow got a full inspection. Most of them were shadows.'},
+      {min:250, tone:'bad',  title:'CRAWLER CHOW',
+       line:'You were down there long enough for the nest to consider you a resident.'},
+      {min:0,   tone:'bad',  title:'NYCTOPHOBIC',
+       line:'The cave is 1,700 metres end to end. You appear to have walked most of them twice, badly.'},
+    ],
     hint: ()=> S.phase===0 ? 'FIND MAYO — SEARCH THE CAVERN'
              : S.phase===1 ? 'FOLLOW THE TRAIL — AND WATCH THE DARK'
              :               'GET OUT — HEAD FOR THE SIGNAL',
@@ -368,6 +443,16 @@ const ui = {
   deadArt: document.getElementById('deadArt'),
   win: document.getElementById('winOverlay'),
   winStats: document.getElementById('winStats'),
+  scoreTotal: document.getElementById('scoreTotal'),
+  rankTitle: document.getElementById('rankTitle'),
+  rankLine: document.getElementById('rankLine'),
+  scoreBest: document.getElementById('scoreBest'),
+  sTimeVal: document.getElementById('sTimeVal'), sTime: document.getElementById('sTime'),
+  sHpVal:   document.getElementById('sHpVal'),   sHp:   document.getElementById('sHp'),
+  sO2Val:   document.getElementById('sO2Val'),   sO2:   document.getElementById('sO2'),
+  sPenRow:  document.getElementById('sPenRow'),
+  sPenVal:  document.getElementById('sPenVal'),  sPen:  document.getElementById('sPen'),
+  runClock: document.getElementById('runClock'),
   settings: document.getElementById('settings'),
   controlsPanel: document.getElementById('controlsPanel'),
   respawnO2: document.getElementById('respawnO2'),
@@ -409,6 +494,23 @@ function savePrefs(){
     v: PREFS_V, respawnO2: ui.respawnO2.value, drainRate: ui.drainRate.value,
     o2Timer: ui.o2Timer.checked })); }catch(e){}
 }
+
+/* Best score per level, keyed by cfg.id. Deliberately NOT stored in PREFS:
+   that key is version-gated and drops fields on a PREFS_V bump, and a balance
+   change must never wipe someone's bests. index.html reads this same key to
+   fill in the level select — keep the two in step if the shape changes. */
+const SCORES='mundusMirisScores';
+function loadScores(){
+  try{ return JSON.parse(localStorage.getItem(SCORES)||'{}').best || {}; }
+  catch(e){ return {}; }
+}
+function saveBest(id,total){        // true if this run beat the stored best
+  const best=loadScores();
+  if(best[id]!=null && best[id]>=total) return false;
+  best[id]=total;
+  try{ localStorage.setItem(SCORES, JSON.stringify({v:1, best})); }catch(e){}
+  return true;
+}
 ui.respawnO2.oninput = () => { ui.respawnVal.textContent = ui.respawnO2.value + '%'; savePrefs(); };
 ui.drainRate.oninput = () => { ui.drainVal.textContent = (ui.drainRate.value/100).toFixed(1) + '×'; savePrefs(); };
 ui.o2Timer.onchange  = () => { savePrefs(); if(scene) scene.updateHUD(); };
@@ -421,6 +523,8 @@ let scene = null;
 function restartLevel(){ if(scene) scene.scene.restart(); }
 function hideDialog(){ ui.dlg.style.display = 'none'; }
 function setHint(text){ ui.hint.textContent = text ? 'CURRENT OBJECTIVE: '+text : ''; }
+function fmtClock(secs){ const s=Math.max(0,Math.floor(secs));
+  return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
 
 /* Swap in the death art for a cause, fetching it on first use.
    Uses visibility rather than display while loading: with display:none the card
@@ -625,7 +729,7 @@ class LevelScene extends Phaser.Scene {
     // reset state
     Object.assign(S,{ o2:TUNE.o2Max, hp:TUNE.hpMax, flares:TUNE.startFlares, checkpoint:null,
       hasClub:cfg.start.hasClub, hasFlag:cfg.start.hasFlag, hasCompanion:false, phase:0, airborne:false, facing:{x:0,y:1}, paused:false,
-      dead:false, won:false, deathCause:null, startTime:this.time.now, deaths:0 });
+      dead:false, won:false, deathCause:null, startTime:this.time.now, deaths:0, pausedMs:0 });
     ui.dead.style.display='none'; ui.win.style.display='none'; hideDialog();
     setDeathArt(null);   // a restart must not flash the previous run's art
 
@@ -1218,24 +1322,75 @@ class LevelScene extends Phaser.Scene {
     // on the respawned player instantly
     this.clearMeteors();
   }
+  /* Elapsed play time. Dialogue is subtracted: S.paused is only a logic flag —
+     the scene clock keeps running through a conversation — and Level 1 alone
+     has three mandatory ones, which against a 60s par would score reading speed
+     rather than play. Both the HUD clock and the score read from here so the
+     number on the win card is the one you watched climb. */
+  elapsedSecs(){ return Math.max(0, (this.time.now-S.startTime-S.pausedMs)/1000); }
+
   winLevel(){
     if(S.won) return; S.won=true;
-    const secs=Math.round((this.time.now-S.startTime)/1000);
+    const secs=Math.round(this.elapsedSecs());
     if(this.cfg.goal.mode==='plantFlag'){
       const flag=this.add.image(this.base.x,this.base.y-14,'flag').setScale(2).setDepth(9999);
       this.tweens.add({targets:flag,y:flag.y-6,duration:300,yoyo:true});
     }
-    ui.winStats.textContent=`Time ${Math.floor(secs/60)}:${String(secs%60).padStart(2,'0')} · Deaths ${S.deaths} · Flares left ${S.flares}`;
+    this.showScore(secs);
     this.time.delayedCall(700,()=>{ ui.win.style.display='flex'; this.cameras.main.shake(600,0.004); });
+  }
+
+  /* Fill in the win card's score block. The markup is inert in every level
+     page, so nothing here is level-specific except the par time. */
+  showScore(secs){
+    const sc = scoreRun({secs, par:this.cfg.par, hp:S.hp, o2:S.o2, deaths:S.deaths});
+    const SC = TUNE.score;
+    const pct = v => Math.round(Phaser.Math.Clamp(v,0,100)) + '%';
+
+    ui.scoreTotal.innerHTML = `<b>${sc.total}</b> / 1000`;
+
+    const rank = pickRank(this.cfg.ranks, sc.total);
+    ui.rankTitle.textContent = rank.title;
+    ui.rankLine.textContent  = rank.line;
+    ui.rankTitle.className   = rank.tone;   // good | mid | bad — colours the title
+
+    ui.sTimeVal.textContent = fmtClock(secs);
+    ui.sTime.textContent    = `${sc.time} / ${SC.time}`;
+    ui.sHpVal.textContent   = pct(S.hp/TUNE.hpMax*100);
+    ui.sHp.textContent      = `${sc.vit} / ${SC.hp}`;
+    ui.sO2Val.textContent   = pct(S.o2/TUNE.o2Max*100);
+    ui.sO2.textContent      = `${sc.air} / ${SC.o2}`;
+    // a clean run shouldn't have to read a row of zeroes to learn it was clean
+    ui.sPenRow.style.display = S.deaths ? '' : 'none';
+    ui.sPenVal.textContent  = String(S.deaths);
+    ui.sPen.textContent     = '−' + sc.pen;
+
+    const prev = loadScores()[this.cfg.id];
+    const isBest = saveBest(this.cfg.id, sc.total);
+    /* 'BEST RUN' under a score of 0 reads as praise when it only means "your
+       only run", so a first attempt says so instead. */
+    ui.scoreBest.textContent = isBest
+      ? (prev==null ? 'FIRST RUN' : `NEW BEST — WAS ${prev}`)
+      : `BEST ${prev}`;
+    ui.scoreBest.classList.toggle('new', isBest);
+
+    // the breakdown covers time and deaths now; leave the trivia it doesn't
+    ui.winStats.textContent = `Flares left ${S.flares}`;
   }
 
   /* ---------- per-frame ---------- */
   update(time,dt){
-    if(S.dead||S.won){ this.base.setVelocity(0,0); this.syncVisuals(); return; }
+    if(S.dead||S.won){
+      // the clock stops on the death card too — the death itself already costs
+      // you, and how long you sit reading the card is not play
+      if(S.dead) S.pausedMs += dt;
+      this.base.setVelocity(0,0); this.syncVisuals(); return;
+    }
     const k=this.keys, sec=dt/1000;
 
     // dialogue handling
     if(S.paused){
+      S.pausedMs += dt;
       this.base.setVelocity(0,0);
       if(time>this.dlgGuard){
         if(this.pendingChoices){
@@ -1351,6 +1506,15 @@ class LevelScene extends Phaser.Scene {
     const low = S.o2 < 25;
     ui.o2.classList.toggle('low',low);
     ui.flares.textContent='FLARES ×'+S.flares;
+
+    /* Run clock. Scoring 500 points on pace with no visible clock would be
+       guesswork, so par is shown alongside it and the readout goes amber once
+       you are over — the point at which the time score has started bleeding. */
+    if(ui.runClock){
+      const secs = this.elapsedSecs();
+      ui.runClock.textContent = fmtClock(secs)+' / '+fmtClock(this.cfg.par);
+      ui.runClock.classList.toggle('over', secs > this.cfg.par);
+    }
 
     // optional countdown: how long the remaining oxygen actually lasts at the
     // current drain setting. Flashes once it drops under the same threshold

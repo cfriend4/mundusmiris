@@ -31,10 +31,15 @@
   /* Real links, so mouse, keyboard, back button and middle-click all just work */
   /* 300px, not 250: "LEVEL 2 - DEATH FROM ABOVE" is 26 chars, which needs
      ~257px at 12px Courier with 2px letter-spacing plus padding. */
-  .levelBtn{display:block; width:300px; margin:5px auto; background:transparent;
+  /* flex, not block: the label sits left and the best score right. */
+  .levelBtn{display:flex; justify-content:space-between; align-items:center; gap:12px;
+    width:300px; margin:5px auto; background:transparent;
     color:var(--bone); border:1px solid var(--line); font-family:inherit;
     font-size:12px; letter-spacing:2px; padding:9px; cursor:pointer;
-    text-decoration:none;}
+    text-decoration:none; text-align:left;}
+  /* An unplayed level shows a dash, not 0 — a zero reads like a bad run. */
+  .levelBtn .best{color:var(--gold); letter-spacing:1px; flex:none;}
+  .levelBtn .best.none{color:var(--dim);}
   .levelBtn:hover, .levelBtn.sel{color:var(--gold); border-color:var(--gold);
     background:rgba(201,162,39,.10);}
   .levelBtn:focus{outline:none;}
@@ -65,10 +70,11 @@
       <div class="menuCard">
         <h2>SELECT LEVEL</h2>
         <div id="levelList">
-          <a class="levelBtn" href="level1.html">LEVEL 1 — LANDING</a>
-          <a class="levelBtn" href="level2.html">LEVEL 2 - DEATH FROM ABOVE</a>
-          <a class="levelBtn" href="level3.html">LEVEL 3 — NYCTOPHOBIA</a>
+          <a class="levelBtn" href="level1.html" data-level="level1"><span>LEVEL 1 — LANDING</span><span class="best"></span></a>
+          <a class="levelBtn" href="level2.html" data-level="level2"><span>LEVEL 2 - DEATH FROM ABOVE</span><span class="best"></span></a>
+          <a class="levelBtn" href="level3.html" data-level="level3"><span>LEVEL 3 — NYCTOPHOBIA</span><span class="best"></span></a>
         </div>
+        <p class="menuHelp" id="runTotal"></p>
         <p class="menuHelp">↑ ↓ SELECT · E / ENTER CONFIRM · OR CLICK</p>
       </div>
     </div>
@@ -133,6 +139,23 @@ window.addEventListener('keydown', e => {
   else if(k==='Escape'){ e.preventDefault(); setScreen('splash'); }
   // Enter on a focused link is left to the browser's native activation
 });
+
+/* Best score per level, written by game.js on a win. This page loads no game
+   engine at all, so the key and shape are repeated here rather than imported —
+   if the schema in game.js ('mundusMirisScores') changes, change it here too. */
+(function paintBests(){
+  let best={};
+  try{ best = JSON.parse(localStorage.getItem('mundusMirisScores')||'{}').best || {}; }
+  catch(e){ /* private mode or blocked storage — the dashes are fine */ }
+  let total=0;
+  for(const b of levelBtns){
+    const v = best[b.dataset.level];
+    const el = b.querySelector('.best');
+    if(v==null){ el.textContent='—'; el.classList.add('none'); }
+    else { el.textContent=v; total+=v; }
+  }
+  document.getElementById('runTotal').textContent = total ? 'RUN TOTAL '+total+' / 3000' : '';
+})();
 
 /* Hold the prompt back until the splash art is actually on screen, so the
    first thing a visitor sees isn't "PRESS E" over an empty frame. */
