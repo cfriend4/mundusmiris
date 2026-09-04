@@ -78,7 +78,11 @@ const TUNE = {
     lungeSpeed: 175,         // 220 closed 88px on you per lunge — unescapable
     lungeMs: 700,
     restMs: 1100,
-    aggroRadius: 250,        // 420 covered the whole chamber; it never let go
+    /* The radius it commits to a lunge from. 250 reached most of the way
+       across the arena, so backing off never broke the loop — it wound up
+       again the moment it finished resting. At 165 there is ground you can
+       retreat to, which is what makes the telegraph worth reading. */
+    aggroRadius: 165,
     contactCooldown: 900,
     contactRadius: 42,        // only applies mid-lunge, see updateCrawlers
   },
@@ -221,6 +225,14 @@ const L3 = {
     sc.nestGate = row(LW,RW,250);     // way out — no gap until the boss dies
     [[280,330],[1000,330],[280,530],[1000,530],[700,545]]
       .forEach(p=> sc.spawnTank(p[0],p[1]));
+    /* Mayo, where it left him — against the north wall, behind the fight.
+       He is visible from inside the nest while IT is still up, so you find him
+       before you can reach him. Deliberately not in sc.npcSprites: the camp
+       trigger empties that list to take him off the cave mouth, and destroying
+       him here is the last thing that scene wants. */
+    sc.add.image(640,316,'shadow');
+    sc.add.image(640,300,'astroDown').setScale(2).setDepth(300);
+
     sc.boss = sc.spawnCrawler(640,400,true);
     /* Nest interior is x 184-1096, y 274-576; inset by the boss's own half-size
        (it is 75x102 at scale 3.4) so it never clips into the walls or the gate. */
@@ -250,9 +262,15 @@ const L3 = {
     {x:640,y:300,r:70,who:'Captain Mayo',text:'You came back. Cannot feel my legs, rookie. You can carry me and we both go slow — or you leave me and you go fast. Your call. Make it quick.',
       cond:()=> S.phase>=2,
       choices:[
-        {key:'1', label:'CARRY HIM', effect:(sc)=>{ sc.spawnCompanion(); sc.pop(sc.base.x,sc.base.y-30,'CARRYING MAYO',0xc9a227); }},
-        {key:'2', label:'LEAVE HIM', effect:(sc)=>{ sc.swingCostMult=TUNE.mercySwingCostMult; sc.pop(sc.base.x,sc.base.y-30,'YOU LEFT HIM',0xb3202a); }},
+        {key:'1', label:'CARRY HIM', effect:(sc)=>{ S.phase=3; sc.spawnCompanion(); sc.pop(sc.base.x,sc.base.y-30,'CARRYING MAYO',0xc9a227); }},
+        {key:'2', label:'LEAVE HIM', effect:(sc)=>{ S.phase=3; sc.swingCostMult=TUNE.mercySwingCostMult; sc.pop(sc.base.x,sc.base.y-30,'YOU LEFT HIM',0xb3202a); }},
       ]},
+    /* Both branches set phase 3, so this lands whichever way you chose — the
+       decision is made, and the next thing you need is somewhere to go. Sits
+       just north of Mayo and just south of the beacon, so it reads as the step
+       between the choice and the way out rather than piling onto either. */
+    {x:640,y:290,r:45,who:'SUIT COMPUTER',text:'The nest\'s north wall has come down — there is a passage beyond it that was not on the descent scan. Something at the far end is pulsing, steady, about once a second. Nothing that lives down here keeps time like that. Follow it.',
+      cond:()=> S.phase>=3},
     {x:640,y:200,r:60,who:'SUIT COMPUTER',text:'Signal acquired. Surface relay, bearing north. It is blinking. Someone is still up there.',
       win:true},
   ],
@@ -423,6 +441,7 @@ const LEVELS = {
     ],
     hint: ()=> S.phase===0 ? 'FIND MAYO — SEARCH THE CAVERN'
              : S.phase===1 ? 'FOLLOW THE TRAIL — AND WATCH THE DARK'
+             : S.phase===2 ? 'THE NEST WALL IS OPEN — MAYO IS AT THE NORTH END'
              :               'GET OUT — HEAD FOR THE SIGNAL',
     triggers: L3.triggers,
     buildTerrain: (sc,W,H)=> L3.build(sc,W,H),
@@ -581,6 +600,21 @@ function makeTextures(sc){
     g.fillStyle(0x3a7bd8); g.fillRect(6,9,2,2);
   });
 
+  /* Mayo where the crawlers left him: propped on his pack, legs out, unable to
+     stand. Its own pose rather than astroN — an upright sprite sitting in the
+     nest would read as someone who could walk out on his own, which is the one
+     thing the scene must not say. */
+  T('astroDown',18,14,g=>{
+    g.fillStyle(0x9a978c); g.fillRect(0,5,2,5);           // pack, taking his weight
+    g.fillStyle(0xcfcabb); g.fillRect(3,0,7,6);           // helmet, tipped back
+    g.fillStyle(0x3a7bd8); g.fillRect(4,2,5,3);           // visor
+    g.fillStyle(0xcfcabb); g.fillRect(2,6,9,5);           // torso
+    g.fillStyle(0x3a7bd8); g.fillRect(5,7,2,2);           // chest patch
+    g.fillStyle(0xafaa9b); g.fillRect(10,8,6,4);          // legs, straight out
+    g.fillRect(16,8,2,4);                                 // boots
+    g.fillRect(3,10,5,2);                                 // arm across his lap
+  });
+
   T('shadow',14,6,g=>{ g.fillStyle(0x000000,0.45); g.fillEllipse(7,3,13,5); });
 
   // lander (decorative, 64x54)
@@ -689,6 +723,11 @@ function makeTextures(sc){
   // red trail marker — the drag-mark leading out of the empty camp
   T('trail',10,6,g=>{ g.fillStyle(0x6e1a1a,0.85); g.fillEllipse(5,3,9,5);
     g.fillStyle(0x8f2222,0.7); g.fillEllipse(5,3,5,3); });
+  /* What the crawlers are full of. Acid green, and deliberately nothing like
+     the red of your own damage numbers or the drag-mark above — at a glance
+     you can tell whose blood you are looking at. */
+  T('ichor',6,6,g=>{ g.fillStyle(0x6fd41f); g.fillEllipse(3,3,6,6);
+    g.fillStyle(0xbaff6a); g.fillEllipse(3,2,3,3); });
 
   // meteor telegraph. Its own texture rather than a tinted flareGlow, which is
   // the checkpoint colour — teaching that a lethal ring is a safe one would be
@@ -781,6 +820,11 @@ class LevelScene extends Phaser.Scene {
        buildTerrain, so they fall through to the block below exactly as before.
        Level 3 is underground and supplies its own, keeping its whole layout in
        one place rather than littering this block with per-level branches. */
+    /* Cleared here, not in the Level 3 block below: buildTerrain is what fills
+       nestGate, so resetting it afterwards would drop the tiles on the floor
+       and leave onBossDown with nothing to destroy — the nest's exit would
+       stay walled for the rest of the run. */
+    this.nestGate = [];
     if(cfg.buildTerrain){
       cfg.buildTerrain(this, W, H);
     } else {
@@ -879,7 +923,7 @@ class LevelScene extends Phaser.Scene {
 
     // ---- Level 3: darkness, enemies, companion. Same rebuild-in-create rule
     // as the meteors: a restart must not leave stale sprite references behind.
-    this.dark = null; this.companion = null; this.nestGate = [];
+    this.dark = null; this.companion = null;   // nestGate is cleared before buildTerrain
     this.swingCostMult = 1;
     if(cfg.dark) this.buildDarkness();
     if(this.enemies){
@@ -1146,8 +1190,13 @@ class LevelScene extends Phaser.Scene {
       /* Touching a crawler hurts straight away. The boss only hurts you while
          it is actually lunging — being near it while it winds up or recovers
          is safe, which is what makes the telegraph mean anything and gives you
-         a window to step in, swing, and step out. */
-      const canTouch = !e.isBoss || e.state==='lunge';
+         a window to step in, swing, and step out.
+         A lunge also passes under a jump: it comes in low and flat, so a hop
+         timed off the tint-flash clears it. That is the dodge the telegraph is
+         teaching, and it is not free — every jump costs air, in a fight that is
+         already an air-economy fight. Ordinary crawlers still catch you in the
+         air, so this never becomes a way to walk through a pack. */
+      const canTouch = e.isBoss ? (e.state==='lunge' && !S.airborne) : true;
       if(canTouch && d < C.contactRadius && time - e.lastTouch > C.contactCooldown){
         e.lastTouch = time;
         this.damage(C.damage, e.isBoss?'it':'crawler');
@@ -1210,7 +1259,10 @@ class LevelScene extends Phaser.Scene {
   }
   hurtEnemy(e, n){
     e.hp -= n;
+    // thrown away from you, so the spray reads as coming off your swing
+    const hx = e.x - this.base.x, hy = e.y - this.base.y;
     if(e.hp > 0){
+      this.bloodSpray(e.x, e.y, e.isBoss?7:5, hx, hy);
       e.setTint(0x9a4a4a); this.time.delayedCall(120,()=>e.active&&e.clearTint());
       /* The club shoves a crawler off you. Without this the swing has no
          felt effect until the third hit kills it, and a pack simply stands
@@ -1223,6 +1275,8 @@ class LevelScene extends Phaser.Scene {
       }
       return;
     }
+    // the killing blow opens it up properly
+    this.bloodSpray(e.x, e.y, e.isBoss?26:12, hx, hy);
     this.pop(e.x,e.y, e.isBoss?'IT FALLS':'KILLED', 0xd8d3c4);
     if(e.isBoss) this.onBossDown();
     e.destroy();
@@ -1233,7 +1287,32 @@ class LevelScene extends Phaser.Scene {
     this.nestGate = [];
     S.phase = 2;                 // unlocks Mayo's Carry/Leave trigger
     this.cameras.main.shake(500,0.006);
-    setHint('THE WAY OUT IS OPEN');
+    /* No setHint here: update() rewrites the hint from cfg.hint() every frame,
+       so anything set from an event is gone by the next one. Phase 2 is what
+       the hint reads to announce the opened wall. */
+  }
+
+  /* A spurt of ichor, thrown out along the swing. `n` scales with the blow, so
+     a kill sprays harder than a graze. Each drop arcs out, slows, and fades;
+     nothing is left behind, so a long fight cannot silt up the scene with
+     sprites the way the meteor scars need a ring buffer to avoid. */
+  bloodSpray(x, y, n, dirX, dirY){
+    const spread = Math.PI*0.7, base = Math.atan2(dirY, dirX);
+    for(let i=0;i<n;i++){
+      const a = base + Phaser.Math.FloatBetween(-spread, spread);
+      const dist = Phaser.Math.Between(14, 40);
+      const d = this.add.image(x, y, 'ichor')
+        .setScale(Phaser.Math.FloatBetween(0.7, 1.6))
+        .setDepth(y+1);
+      this.tweens.add({
+        targets: d,
+        x: x + Math.cos(a)*dist, y: y + Math.sin(a)*dist,
+        scale: 0.2, alpha: 0,
+        duration: Phaser.Math.Between(260, 460),
+        ease: 'Quad.easeOut',
+        onComplete: ()=> d.destroy(),
+      });
+    }
   }
 
   pop(x,y,txt,color){
